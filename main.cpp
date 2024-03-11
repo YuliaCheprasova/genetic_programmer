@@ -5,6 +5,7 @@ using namespace std;
 // константы же типа double? их рандомными задавать?
 typedef class Node
 {
+public:
     char type;
     int operation;
     int variable;
@@ -46,41 +47,64 @@ typedef class Node
 class Tree
 {
     Node* root;
-
-    /*Node* FindFree(Node* node)
+    Tree()
     {
-        if(node == NULL)
-        {
-            return node;
-        }
-        FindFree(node.left);
-        FindFree(node.right);
-        if(*node.left == NULL)
-        {
-            return *node.left;
-        }
-        else if(*node.right == NULL)
-        {
-            return *node.right;
-        }
-        else if()//тут нужно проверить на глубину
-            {FindFree(*node.left);}
-    }*/
-    int AddElem(Node cur_el, Node new_el)
-    {
-        Node root = cur_el;
-        if(root == NULL)
-        {
-            root = new_el;
-            return 0;
-        }
-        AddElem(root.left, new_el);
-        AddElem(root.right, new_el);
-        return 1;
+        this->root = NULL;
     }
 
+    /*void AddElem(Node* parent, Node* cur_el, Node* new_el, int unar_oper, int bin_oper)
+    {
+        if(cur_el == NULL)
+        {
+            cur_el = new_el;
+            return;
+        }
+        else if(*parent < unar_oper)
+        {
+            AddElem(cur_el, cur_el->left, new_el, unar_oper, bin_oper);
+        }
+        else if(*parent >= unar_oper && *parent < unar_oper+bin_oper)
+        {
+            AddElem(cur_el, cur_el->left, new_el, unar_oper, bin_oper);
+            AddElem(cur_el, cur_el->right, new_el, unar_oper, bin_oper);
+        }
+        else if(*parent >= unar_oper+bin_oper)
+        {
+            AddElem(cur_el, cur_el->left, new_el, unar_oper, bin_oper);
+            AddElem(cur_el, cur_el->right, new_el, unar_oper, bin_oper);
+            AddElem(cur_el, cur_el->mid, new_el, unar_oper, bin_oper);
+        }
+    }*/
+    void AddNode(Node* new_el, int unar_oper, int bin_oper)
+    {
+        AddNode(new_el, unar_oper, bin_oper, root);
+    }
 
-    /*void PrintTree()
+    void AddNode(Node* new_el, int unar_oper, int bin_oper, Node* cur_el)
+    {
+        if(cur_el == NULL)
+        {
+            cur_el = new_el;
+            return;
+        }
+        else if(cur_el->operation < unar_oper)
+        {
+            AddNode(new_el, unar_oper, bin_oper, cur_el->left);
+        }
+        else if(cur_el->operation >= unar_oper && cur_el->operation < unar_oper+bin_oper)
+        {
+            AddNode(new_el, unar_oper, bin_oper, cur_el->left);
+            AddNode(new_el, unar_oper, bin_oper, cur_el->right);
+        }
+        else if(cur_el->operation >= unar_oper+bin_oper)
+        {
+            AddNode(new_el, unar_oper, bin_oper, cur_el->left);
+            AddNode(new_el, unar_oper, bin_oper, cur_el->right);
+            AddNode(new_el, unar_oper, bin_oper, cur_el->mid);
+        }
+    }
+
+    void PrintTree()
     {
         if (this->p_left != NULL)
         {
@@ -98,7 +122,7 @@ class Tree
         {
             this->p_right->PrintTree();
         }
-    }*/
+    }
 };
 
 void synthetic_data(double* x, double* y, int num_obs)
@@ -113,8 +137,8 @@ void synthetic_data(double* x, double* y, int num_obs)
 
 int main()
 {
-    int i, j, num_obs = 400, num_oper = 8, num_var = 1, num_types = 3, depth = 3;
-    // 0+, 1-, 2*, 3/, 4sin, 5cos, 6exp, 7log,
+    int i, j, num_obs = 400, unar_oper = 3, bin_oper = 5, trin_oper = 1, num_var = 1, num_types = 3, depth = 3;
+    // 0sin, 1cos, 2exp, 3log, 4+, 5-, 6*, 7/, 8if..then..else
     // 0x,
     double* x = new double [num_obs];
     double* y = new double [num_obs];
@@ -124,7 +148,9 @@ int main()
     type[1] = 'var';
     type[2] = 'const';
     synthetic_data(x, y, num_obs);
-
+    Tree* tree = new Tree();
+    Node* node = new Node('oper', 2);
+    tree.AddNode(node, unar_oper, bin_oper);
     delete[] x;
     delete[] y;
     delete[] type;
