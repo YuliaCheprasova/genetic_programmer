@@ -1,0 +1,5 @@
+# depslib dependency file v1.0
+1710501122 source:c:\programs\disk_c\codeblocks_projects\genetic_programmer\main.cpp
+	<iostream>
+	<cmath>
+
