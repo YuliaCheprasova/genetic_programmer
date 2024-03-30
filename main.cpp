@@ -5,6 +5,18 @@
 #include <climits>
 
 using namespace std;
+//глобальные переменные
+double MAX = std::numeric_limits<double>::max();
+double MIN = std::numeric_limits<double>::min();
+double mean = 0, stddev = 1;
+static random_device rd;
+static mt19937 gen(rd());
+normal_distribution<double> dist(mean, stddev);
+int unar_oper = 6, bin_oper = 6, trin_oper = 1, num_var = 1;
+// 1000sin, 1001cos, 1002exp, 1003ln, 1004 1/x, 1005-выраж, 2000log, 2001+, 2002-, 2003*, 2004/, 2005a^x, 3000if..then..else
+// 0x,
+
+double generate_normal() {return dist(gen);}
 
 typedef class Node
 {
@@ -80,7 +92,7 @@ public:
 
     double count_fitness(double error);
 
-    void PointMut(Node* cur_el, int unar_oper, int bin_oper, int num_var);
+    void PointMut(Node* cur_el);
 
     ~Tree();
 
@@ -191,7 +203,7 @@ double Tree::evaluateExpression(double* x)
     return evaluateExpression(x, root);
 }
 
-double Tree::evaluateExpression(double* x, Node* cur_el)// как именно x подавать, одно наблюдение?
+double Tree::evaluateExpression(double* x, Node* cur_el)
 {
     if (cur_el == nullptr) {return 0.0;}
     if (cur_el->type == 'c') {return cur_el->constant;}
@@ -201,19 +213,36 @@ double Tree::evaluateExpression(double* x, Node* cur_el)// как именно x подавать
     }
     else if (cur_el->operation < 2000)
     {
+        double ev_expression = evaluateExpression(x, cur_el->left);
+        //if (isnan(ev_expression))
+        if (isinf(ev_expression)){ev_expression = MAX;}
         switch(cur_el->operation)
         {
             case 1000:
             {
-                return sin(evaluateExpression(x, cur_el->left));
+                return sin(ev_expression);
             }
             case 1001:
             {
-                return cos(evaluateExpression(x, cur_el->left));
+                return cos(ev_expression);
             }
             case 1002:
             {
-                return exp(evaluateExpression(x, cur_el->left));
+                return exp(ev_expression);
+            }
+            case 1003:
+            {
+                if(ev_expression <= 0){ev_expression = MIN;}
+                return log(ev_expression);
+            }
+            case 1004:
+            {
+                if(ev_expression == 0){ev_expression = MIN;}
+                return 1./ev_expression;
+            }
+            case 1005:
+            {
+                return -ev_expression;
             }
         }
     }
@@ -221,10 +250,17 @@ double Tree::evaluateExpression(double* x, Node* cur_el)// как именно x подавать
     {
         double left_value = evaluateExpression(x, cur_el->left);
         double right_value = evaluateExpression(x, cur_el->right);
+        if (isinf(left_value)){left_value = MAX;}
+        if (isinf(right_value)){right_value = MAX;}
         switch (cur_el->operation)
         {
             case 2000:// слева основание
-                return log(right_value)/log(left_value);
+                {
+                    if(left_value <= 0){left_value = MIN;}
+                    else if(left_value == 1){left_value = 0.9999999999999999;}//вот тут спросить
+                    if(right_value <= 0){right_value = MIN;}
+                    return log(right_value)/log(left_value);
+                }
             case 2001:
                 return left_value +  right_value;
             case 2002:
@@ -232,7 +268,16 @@ double Tree::evaluateExpression(double* x, Node* cur_el)// как именно x подавать
             case 2003:
                 return left_value * right_value;
             case 2004:
-                return left_value / right_value;
+                {
+                    if(right_value == 0){right_value = MIN;}
+                    return left_value / right_value;
+                }
+            case 2005:
+                {
+                    if(left_value < 0){left_value = 0;}
+                    if(left_value == 0 && right_value == 0){return 0.0;}//про это сказать
+                    return pow(left_value, right_value);
+                }
         }
     }
     else if (cur_el->operation >= 3000)
@@ -240,6 +285,9 @@ double Tree::evaluateExpression(double* x, Node* cur_el)// как именно x подавать
         double left_value = evaluateExpression(x, cur_el->left);
         double mid_value = evaluateExpression(x, cur_el->mid);
         double right_value = evaluateExpression(x, cur_el->right);
+        if (isinf(left_value)){left_value = MAX;}
+        if (isinf(right_value)){right_value = MAX;}
+        if (isinf(mid_value)){mid_value = MAX;}
         switch (cur_el->operation)
         {
             case 3000:
@@ -273,11 +321,11 @@ string Tree::printExpression(Node* cur_el)
     }
     else if (cur_el->operation < 2000)
     {
+        check = printExpression(cur_el->left);
         switch(cur_el->operation)
         {
             case 1000:
             {
-                check = printExpression(cur_el->left);
                 if (check.find("(")==0)
                     return "sin" + check;
                 else
@@ -287,7 +335,6 @@ string Tree::printExpression(Node* cur_el)
             }
             case 1001:
             {
-                check = printExpression(cur_el->left);
                 if (check.find("(")==0)
                     return "cos" + check;
                 else
@@ -295,15 +342,30 @@ string Tree::printExpression(Node* cur_el)
                     return "cos(" + check + ")";
                 }
             }
-            case 1002:
+            case 1002://если основание чуть меньше одного, то минус бесконечность
             {
-                check = printExpression(cur_el->left);
                 if (check.find("(")==0)
                     return "exp" + check;
                 else
                 {
                     return "exp(" + check + ")";
                 }
+            }
+            case 1003:
+            {
+                return "ln(" + check + ")";
+            }
+            case 1004:
+            {
+                if (check.find("(")==0)
+                    return "1/" + check;
+                else return "1/(" + check + ")";
+            }
+            case 1005:// вот тут надо пр€м подумать
+            {
+                if (check.find("(-")==0)
+                    return "1/" + check;
+                else return "-" + check;
             }
         }
     }
@@ -323,6 +385,8 @@ string Tree::printExpression(Node* cur_el)
                 return "(" + left_value + "*" + right_value + ")";
             case 2004:
                 return "(" + left_value + "/" + right_value + ")";
+            case 2005:
+                return "(" + left_value + ")^" + "(" + right_value + ")";
         }
     }
     else if (cur_el->operation >= 3000)
@@ -360,7 +424,7 @@ double Tree::count_fitness(double error)
     return 1/(1+error);
 }
 
-void Tree::PointMut(Node* cur_el, int unar_oper, int bin_oper, int num_var)
+void Tree::PointMut(Node* cur_el)
 {
     double p = 0.01, mut, before, random_const;
     int random_oper, random_opervar;
@@ -513,26 +577,21 @@ void quicksort(int* p, double* in, int start, int _end)
     quicksort(p, in, pivot + 1, _end);
 }
 
-double generate_normal() {
-    double mean = 0, stddev = 1;
-    static random_device rd;
-    static mt19937 gen(rd());
-    normal_distribution<double> dist(mean, stddev);
-    return dist(gen);
-}
 
 void synthetic_data(double** x, double* y, int num_obs)
 {
     int i;
     for(i = 0; i < num_obs; i++)
     {
-        x[i][0] = 0.01*i;
-        y[i] = 10*x[i][0] + sin(x[i][0]);
+        //x[i][0] = 0.01*i;
+        x[i][0] = 1*i;
+        //y[i] = 10*x[i][0] + sin(x[i][0]);
+        y[i] = x[i][0]*x[i][0];
     }
 }
 
 // заполн€етс€ дерево с верхушки, потом влево, потом вправо, потом в середину
-void init_population(int switch_init, int n, int unar_oper, int bin_oper, int trin_oper, Tree* tree, char* type, int depth, int num_var)
+void init_population(int switch_init, int n, Tree* tree, char* type, int depth)
 {
     int success, i, random_opervar, random_type, random_oper, flag = 0;
     double random_const;
@@ -567,6 +626,9 @@ void init_population(int switch_init, int n, int unar_oper, int bin_oper, int tr
                 }
                 else if(random_type == 2)
                 {
+                    random_const = (double) rand() / (double)(RAND_MAX);
+                    if(random_const < 0.05)
+                        random_const = rand()
                     random_const = generate_normal();
                     success = tree[i].AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
                 }
@@ -582,8 +644,8 @@ void init_population(int switch_init, int n, int unar_oper, int bin_oper, int tr
             while (success == 1)
             {
                 flag = 0;
-                random_type = rand() % 3;
-                if(random_type == 0)
+                random_type = (double) rand() / (double)(RAND_MAX);
+                if(random_type > 0.1)
                 {
                     random_oper = rand() % 2;//if..then..else пока не использую;
                     if(random_oper == 0)
@@ -596,15 +658,19 @@ void init_population(int switch_init, int n, int unar_oper, int bin_oper, int tr
                     }
                     success = tree[i].AddNode(type[0], random_opervar, 0, depth-1, &flag, 0);
                 }
-                else if(random_type == 1)
+                else
                 {
-                    random_opervar = rand() % num_var;
-                    success = tree[i].AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
-                }
-                else if(random_type == 2)
-                {
-                    random_const = generate_normal();
-                    success = tree[i].AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
+                    random_type = 1+rand() % 2;
+                    if(random_type == 1)
+                    {
+                        random_opervar = rand() % num_var;
+                        success = tree[i].AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
+                    }
+                    else if(random_type == 2)
+                    {
+                        random_const = generate_normal();
+                        success = tree[i].AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
+                    }
                 }
             }
             success = 1;
@@ -779,14 +845,14 @@ void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* 
     delete[] p;
 }
 
-void mutation(string mut_switch, int n, Tree *children, int unar_oper, int bin_oper, int num_var)
+void mutation(string mut_switch, int n, Tree *children)
 {
     int i, j;
     if(mut_switch == "point")
     {
         for (i = 0; i< n; i++)
         {
-            children[i].PointMut(children[i].root, unar_oper, bin_oper, num_var);
+            children[i].PointMut(children[i].root);
         }
     }
     if(mut_switch == "tree")
@@ -799,13 +865,11 @@ int main()
 {
     srand(time(NULL));
     setlocale(0, "");
-    int i, j, obs, num_obs = 10, unar_oper = 3, bin_oper = 5, trin_oper = 1, num_var = 1, num_types = 3, depth = 3, flag=0;
-    // 1000sin, 1001cos, 1002exp, 2000log, 2001+, 2002-, 2003*, 2004/, 3000if..then..else
-    // 0x,
+    int i, j, obs, num_obs = 10, num_types = 3, depth = 3, flag=0;
     // flag нужен дл€ того, чтобы понимать добавилс€ ли элемент в дерево, d контролирует глубину стро€щегос€ дерева
     int n = 10, num_generals=10, general;
     //n - количество индивидов в поколении, num_generals - количество поколений
-    int switch_init = 0;
+    int switch_init = 1;
     //0 - полный метод, 1 - метод выращивани€
     string sel_switch = "tour";// prop, rang, tour
     string mut_switch = "point";//point, tree
@@ -830,8 +894,7 @@ int main()
     synthetic_data(x, y, num_obs);
 
     Tree* tree = new Tree[n];
-
-    init_population(switch_init, n, unar_oper, bin_oper, trin_oper, tree, type, depth, num_var);
+    init_population(switch_init, n, tree, type, depth);
     for(general = 0; general < num_generals; general++)
     {
         cout << "General " << general << endl;
@@ -841,13 +904,13 @@ int main()
             cout << "Tree " << i <<endl;
             //tree[i].PrintTree();
             cout << "¬ыражение " << delete_brackets(tree[i].printExpression()) << endl;
-            //cout << "«начение выражени€ " << tree[i].evaluateExpression(x[obs]) << endl;
-            //fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
-            //cout << fitness[i] << endl;
+            cout << "«начение выражени€ " << tree[i].evaluateExpression(x[0]) << endl;
+            fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
+            cout << "«начение функции пригодности " << fitness[i] << endl;
         }
         // fitness не перезаписываетс€
         //selection(sel_switch, fitness, n, parents, tree);
-        mutation(mut_switch, n, tree, unar_oper, bin_oper, num_var);
+        /*mutation(mut_switch, n, tree, unar_oper, bin_oper, num_var);
         for(i = 0; i < n; i++)
         {
             cout << "Tree " << i <<endl;
@@ -856,7 +919,7 @@ int main()
             //cout << "«начение выражени€ " << tree[i].evaluateExpression(x[obs]) << endl;
             //fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
             //cout << fitness[i] << endl;
-        }
+        }*/
     }
 
     //delete[] children;
@@ -872,5 +935,7 @@ int main()
     delete[] type;
 }
 
-// спросить про то что делать с делением и логарифмами и про штрафы
 // завтра зан€тьс€ отбором индивидов, вторым видом мутации, скрещиванием
+// штраф = коэффициент*количество узлов в дереве, пока что вообще не надо добавл€ть это потом
+// что насчет минус бесконечности
+// спросить про второй метод выращивани€ 10%
