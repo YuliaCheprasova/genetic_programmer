@@ -15,7 +15,7 @@ normal_distribution<double> dist(mean, stddev);
 int unar_oper = 6, bin_oper = 6, trin_oper = 1, num_var = 1;
 // 1000sin, 1001cos, 1002exp, 1003ln, 1004 1/x, 1005-выраж, 2000log, 2001+, 2002-, 2003*, 2004/, 2005a^x, 3000if..then..else
 // 0x,
-
+char type[3]{ 'o', 'v', 'c' };
 double generate_normal() {return dist(gen);}
 
 typedef class Node
@@ -70,6 +70,10 @@ public:
         this->num_nodes = 0;
     }
 
+    ~Tree();
+
+    void ClearTree(Node* node);
+
     int AddNode(int type, int number, double value, int depth, int* flag, int d);
 
     void AddNode(int type, int number, double value, int depth, int* flag, int d, Node*& cur_el);
@@ -92,12 +96,30 @@ public:
 
     double count_fitness(double error);
 
+    void Growth(int switch_init, int depth);
+
     void PointMut(Node* cur_el);
 
-    ~Tree();
-
-    void ClearTree(Node* node);
+    void PartMut(int switch_init, Node* cur_el, int depth, int* flag, bool check_root);
 };
+
+Tree::~Tree()
+{
+    ClearTree(root);
+}
+
+void Tree::ClearTree(Node* node)
+{
+    if (node != nullptr)
+    {
+        ClearTree(node->left);
+        ClearTree(node->mid);
+        ClearTree(node->right);
+        delete node;
+        if (node == root)//не уверена, что это правильно попробую пока так
+            root = nullptr;
+    }
+}
 
 int Tree::AddNode(int type, int number, double value, int depth, int* flag, int d)
 {
@@ -363,9 +385,7 @@ string Tree::printExpression(Node* cur_el)
             }
             case 1005:// вот тут надо пр€м подумать
             {
-                if (check.find("(-")==0)
-                    return "1/" + check;
-                else return "-" + check;
+                return "(-" + check + ")";
             }
         }
     }
@@ -408,7 +428,6 @@ double Tree::error(int num_obs, double** x, double* y)
 {
     int obs;
     double res=0, check;
-    //auto inf = numeric_limits<double>::infinity();
     for(obs = 0; obs < num_obs; obs++)
     {
         check = evaluateExpression(x[obs]);
@@ -421,7 +440,119 @@ double Tree::error(int num_obs, double** x, double* y)
 
 double Tree::count_fitness(double error)
 {
-    return 1/(1+error);
+    double fitness = 1/(1+error);
+    if(isinf(fitness)){fitness = MAX;}
+    return fitness;
+}
+
+void Tree::Growth(int switch_init, int depth)
+{
+    int success, random_opervar, random_type, random_oper, flag = 0;
+    double random_const;
+    if(switch_init == 0)
+    {
+        success = 1;
+        while (success == 1)
+        {
+            flag = 0;
+            random_oper = rand() % 2;//if..then..else пока не использую;
+            if(random_oper == 0)
+            {
+                random_opervar = (rand() % unar_oper)+1000;
+            }
+            else if(random_oper == 1)
+            {
+                random_opervar = (rand() % bin_oper)+2000;
+            }
+            success = AddNode(type[0], random_opervar, 0, depth-1, &flag, 0);
+        }
+        success = 1;
+        while (success == 1)
+        {
+            flag = 0;
+            random_type = 1+rand() % 2;
+            if(random_type == 1)
+            {
+                random_opervar = rand() % num_var;
+                success = AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
+            }
+            else if(random_type == 2)
+            {
+                random_const = (double) rand() / (double)(RAND_MAX);
+                if(random_const < 0.05)
+                {
+                    if(rand()%2==0){random_const = M_PI;}
+                    else {random_const = M_E;}
+                }
+                else{random_const = generate_normal();}
+                success = AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
+            }
+        }
+    }
+    if(switch_init == 1)
+    {
+        success = 1;
+        while (success == 1)
+        {
+            flag = 0;
+            random_const = (double) rand() / (double)(RAND_MAX);
+            if(random_const > 0.1)
+            {
+                random_oper = rand() % 2;//if..then..else пока не использую;
+                if(random_oper == 0)
+                {
+                    random_opervar = (rand() % unar_oper)+1000;
+                }
+                else if(random_oper == 1)
+                {
+                    random_opervar = (rand() % bin_oper)+2000;
+                }
+                success = AddNode(type[0], random_opervar, 0, depth-1, &flag, 0);
+            }
+            else
+            {
+                random_type = 1+rand() % 2;
+                if(random_type == 1)
+                {
+                    random_opervar = rand() % num_var;
+                    success = AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
+                }
+                else if(random_type == 2)
+                {
+                    random_const = (double) rand() / (double)(RAND_MAX);
+                    if(random_const < 0.05)
+                    {
+                        if(rand()%2==0){random_const = M_PI;}
+                        else {random_const = M_E;}
+                    }
+                    else{random_const = generate_normal();}
+                    success = AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
+                }
+            }
+        }
+        success = 1;
+        while (success == 1)
+        {
+            flag = 0;
+            random_type = 1+rand() % 2;
+            if(random_type == 1)
+            {
+                random_opervar = rand() % num_var;
+                success = AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
+            }
+            else if(random_type == 2)
+            {
+                random_const = (double) rand() / (double)(RAND_MAX);
+                if(random_const < 0.05)
+                {
+                    if(rand()%2==0){random_const = M_PI;}
+                    else {random_const = M_E;}
+                }
+                else{random_const = generate_normal();}
+                success = AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
+            }
+        }
+    }
 }
 
 void Tree::PointMut(Node* cur_el)
@@ -477,21 +608,55 @@ void Tree::PointMut(Node* cur_el)
 
 }
 
-Tree::~Tree()
+void Tree::PartMut(int switch_init, Node* cur_el, int depth, int* flag, bool check_root = false)
 {
-    ClearTree(root);
-}
-
-void Tree::ClearTree(Node* node)
-{
-    if (node != nullptr)
+    double p = 0.01, mut;
+    if(cur_el==NULL){return;}
+    mut = ((double) rand() / (double)(RAND_MAX));
+    if (mut <= p)//mut <= p
     {
-        ClearTree(node->left);
-        ClearTree(node->mid);
-        ClearTree(node->right);
-        delete node;
+        cout << "ƒо мутации" << endl;
+        PrintTree();
+        ClearTree(cur_el);
+        if(check_root)
+        {
+            Growth(switch_init, depth);
+            cout << "ѕосле мутации" << endl;
+            PrintTree();
+            return;
+        }
+        *flag = 1;
+        return;
+    }
+    PartMut(switch_init, cur_el->left, depth, flag);
+    if(*flag == 1)
+    {
+        cur_el->left = NULL;
+        Growth(switch_init, depth);
+        cout << "ѕосле мутации" << endl;
+        PrintTree();
+        *flag = 0;
+    }
+    PartMut(switch_init, cur_el->right, depth, flag);
+    if(*flag == 1)
+    {
+        cur_el->right = NULL;
+        Growth(switch_init, depth);
+        cout << "ѕосле мутации" << endl;
+        PrintTree();
+        *flag = 0;
+    }
+    PartMut(switch_init, cur_el->mid, depth, flag);
+    if(*flag == 1)
+    {
+        cur_el->mid = NULL;
+        Growth(switch_init, depth);
+        cout << "ѕосле мутации" << endl;
+        PrintTree();
+        *flag = 0;
     }
 }
+
 
 int part(double* p, int* in, int start, int _end)
 {
@@ -591,105 +756,12 @@ void synthetic_data(double** x, double* y, int num_obs)
 }
 
 // заполн€етс€ дерево с верхушки, потом влево, потом вправо, потом в середину
-void init_population(int switch_init, int n, Tree* tree, char* type, int depth)
+void init_population(int switch_init, int n, Tree* tree, int depth)
 {
-    int success, i, random_opervar, random_type, random_oper, flag = 0;
-    double random_const;
-    if(switch_init == 0)
+    int i;
+    for(i = 0; i < n; i++)
     {
-        for(i = 0; i < n; i++)
-        {
-            success = 1;
-            while (success == 1)
-            {
-                flag = 0;
-                random_oper = rand() % 2;//if..then..else пока не использую;
-                if(random_oper == 0)
-                {
-                    random_opervar = (rand() % unar_oper)+1000;
-                }
-                else if(random_oper == 1)
-                {
-                    random_opervar = (rand() % bin_oper)+2000;
-                }
-                success = tree[i].AddNode(type[0], random_opervar, 0, depth-1, &flag, 0);
-            }
-            success = 1;
-            while (success == 1)
-            {
-                flag = 0;
-                random_type = 1+rand() % 2;
-                if(random_type == 1)
-                {
-                    random_opervar = rand() % num_var;
-                    success = tree[i].AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
-                }
-                else if(random_type == 2)
-                {
-                    random_const = (double) rand() / (double)(RAND_MAX);
-                    if(random_const < 0.05)
-                        random_const = rand()
-                    random_const = generate_normal();
-                    success = tree[i].AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
-                }
-            }
-        }
-    }
-    if(switch_init == 1)// возможно нужно сделать не равные шансы выпадани€ элементов из функционально и терминального множеств
-        //мне кажетс€ у функционального должно быть больше шансов
-    {
-        for(i = 0; i < n; i++)
-        {
-            success = 1;
-            while (success == 1)
-            {
-                flag = 0;
-                random_type = (double) rand() / (double)(RAND_MAX);
-                if(random_type > 0.1)
-                {
-                    random_oper = rand() % 2;//if..then..else пока не использую;
-                    if(random_oper == 0)
-                    {
-                        random_opervar = (rand() % unar_oper)+1000;
-                    }
-                    else if(random_oper == 1)
-                    {
-                        random_opervar = (rand() % bin_oper)+2000;
-                    }
-                    success = tree[i].AddNode(type[0], random_opervar, 0, depth-1, &flag, 0);
-                }
-                else
-                {
-                    random_type = 1+rand() % 2;
-                    if(random_type == 1)
-                    {
-                        random_opervar = rand() % num_var;
-                        success = tree[i].AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
-                    }
-                    else if(random_type == 2)
-                    {
-                        random_const = generate_normal();
-                        success = tree[i].AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
-                    }
-                }
-            }
-            success = 1;
-            while (success == 1)
-            {
-                flag = 0;
-                random_type = 1+rand() % 2;
-                if(random_type == 1)
-                {
-                    random_opervar = rand() % num_var;
-                    success = tree[i].AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
-                }
-                else if(random_type == 2)
-                {
-                    random_const = generate_normal();
-                    success = tree[i].AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
-                }
-            }
-        }
+         tree[i].Growth(switch_init, depth);
     }
 }
 
@@ -845,9 +917,9 @@ void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* 
     delete[] p;
 }
 
-void mutation(string mut_switch, int n, Tree *children)
+void mutation(string mut_switch, int switch_init, int n, Tree *children, int depth)
 {
-    int i, j;
+    int i, j, flag = 0;
     if(mut_switch == "point")
     {
         for (i = 0; i< n; i++)
@@ -855,9 +927,12 @@ void mutation(string mut_switch, int n, Tree *children)
             children[i].PointMut(children[i].root);
         }
     }
-    if(mut_switch == "tree")
+    if(mut_switch == "part")
     {
-
+        for (i = 0; i< n; i++)
+        {
+            children[i].PartMut(switch_init, children[i].root, depth, &flag, true);
+        }
     }
 }
 
@@ -865,14 +940,14 @@ int main()
 {
     srand(time(NULL));
     setlocale(0, "");
-    int i, j, obs, num_obs = 10, num_types = 3, depth = 3, flag=0;
+    int i, j, obs, num_obs = 10, depth = 3, flag=0;
     // flag нужен дл€ того, чтобы понимать добавилс€ ли элемент в дерево, d контролирует глубину стро€щегос€ дерева
     int n = 10, num_generals=10, general;
     //n - количество индивидов в поколении, num_generals - количество поколений
-    int switch_init = 1;
+    int switch_init = 0;
     //0 - полный метод, 1 - метод выращивани€
     string sel_switch = "tour";// prop, rang, tour
-    string mut_switch = "point";//point, tree
+    string mut_switch = "part";//point, part
 
 
     double** x = new double* [num_obs];//строчки - наблюдени€, столбцы - признаки дл€ каждого наблюдени€
@@ -881,20 +956,14 @@ int main()
         x[i] = new double[num_var];
     }
     double* y = new double [num_obs];
-    char* type = new char[num_types];
     double* fitness = new double[n*2];
+    Tree* tree = new Tree[n];
     Tree* parents = new Tree[n*2];
     Tree* children = new Tree[n*2];//зачем n*2??
 
-
-
-    type[0] = 'o';
-    type[1] = 'v';
-    type[2] = 'c';
     synthetic_data(x, y, num_obs);
 
-    Tree* tree = new Tree[n];
-    init_population(switch_init, n, tree, type, depth);
+    init_population(switch_init, n, tree, depth);
     for(general = 0; general < num_generals; general++)
     {
         cout << "General " << general << endl;
@@ -903,23 +972,23 @@ int main()
         {
             cout << "Tree " << i <<endl;
             //tree[i].PrintTree();
-            cout << "¬ыражение " << delete_brackets(tree[i].printExpression()) << endl;
-            cout << "«начение выражени€ " << tree[i].evaluateExpression(x[0]) << endl;
-            fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
-            cout << "«начение функции пригодности " << fitness[i] << endl;
+            cout << "¬ыражение " << tree[i].printExpression() << endl;
+            //cout << "«начение выражени€ " << tree[i].evaluateExpression(x[0]) << endl;
+            //fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
+            //cout << "«начение функции пригодности " << fitness[i] << endl;
         }
         // fitness не перезаписываетс€
         //selection(sel_switch, fitness, n, parents, tree);
-        /*mutation(mut_switch, n, tree, unar_oper, bin_oper, num_var);
+        mutation(mut_switch, switch_init, n, tree, depth);
         for(i = 0; i < n; i++)
         {
             cout << "Tree " << i <<endl;
             //tree[i].PrintTree();
-            cout << "¬ыражение " << delete_brackets(tree[i].printExpression()) << endl;
+            cout << "¬ыражение " << tree[i].printExpression() << endl;
             //cout << "«начение выражени€ " << tree[i].evaluateExpression(x[obs]) << endl;
             //fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
             //cout << fitness[i] << endl;
-        }*/
+        }
     }
 
     //delete[] children;
@@ -932,10 +1001,9 @@ int main()
     }
     delete[] x;
     delete[] y;
-    delete[] type;
 }
 
 // завтра зан€тьс€ отбором индивидов, вторым видом мутации, скрещиванием
 // штраф = коэффициент*количество узлов в дереве, пока что вообще не надо добавл€ть это потом
 // что насчет минус бесконечности
-// спросить про второй метод выращивани€ 10%
+// в Tree0 после знака делени€ вообще исчезло число
