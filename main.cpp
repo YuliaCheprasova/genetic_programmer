@@ -568,14 +568,17 @@ void Tree::PointMut(Node* cur_el)
             before = cur_el->operation;
             do
             {
-                random_oper = rand() % 2;//if..then..else пока не использую;
-                if(random_oper == 0)
+                if(before < 2000)
                 {
                     random_opervar = (rand() % unar_oper)+1000;
                 }
-                else if(random_oper == 1)
+                else if(before >= 2000 && before < 3000)
                 {
                     random_opervar = (rand() % bin_oper)+2000;
+                }
+                else if(before >= 3000)
+                {
+                    random_opervar = (rand() % trin_oper)+3000;
                 }
             }while (before == random_opervar);
             cur_el->operation = random_opervar;
@@ -601,6 +604,9 @@ void Tree::PointMut(Node* cur_el)
             }while (before == random_const);
             cur_el->constant = random_const;
         }
+        cout << endl;
+        cout << "Mutation "<< before << endl;
+        cout << endl;
     }
     PointMut(cur_el->left);
     PointMut(cur_el->mid);
@@ -938,7 +944,7 @@ void mutation(string mut_switch, int switch_init, int n, Tree *children, int dep
 
 int main()
 {
-    srand(time(NULL));
+    //srand(time(NULL));
     setlocale(0, "");
     int i, j, obs, num_obs = 10, depth = 3, flag=0;
     // flag нужен для того, чтобы понимать добавился ли элемент в дерево, d контролирует глубину строящегося дерева
@@ -947,7 +953,7 @@ int main()
     int switch_init = 0;
     //0 - полный метод, 1 - метод выращивания
     string sel_switch = "tour";// prop, rang, tour
-    string mut_switch = "part";//point, part
+    string mut_switch = "point";//point, part
 
 
     double** x = new double* [num_obs];//строчки - наблюдения, столбцы - признаки для каждого наблюдения
@@ -973,9 +979,9 @@ int main()
             cout << "Tree " << i <<endl;
             //tree[i].PrintTree();
             cout << "Выражение " << tree[i].printExpression() << endl;
-            //cout << "Значение выражения " << tree[i].evaluateExpression(x[0]) << endl;
-            //fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
-            //cout << "Значение функции пригодности " << fitness[i] << endl;
+            cout << "Значение выражения " << tree[i].evaluateExpression(x[0]) << endl;
+            fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
+            cout << "Значение функции пригодности " << fitness[i] << endl;
         }
         // fitness не перезаписывается
         //selection(sel_switch, fitness, n, parents, tree);
@@ -985,9 +991,9 @@ int main()
             cout << "Tree " << i <<endl;
             //tree[i].PrintTree();
             cout << "Выражение " << tree[i].printExpression() << endl;
-            //cout << "Значение выражения " << tree[i].evaluateExpression(x[obs]) << endl;
-            //fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
-            //cout << fitness[i] << endl;
+            cout << "Значение выражения " << tree[i].evaluateExpression(x[obs]) << endl;
+            fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
+            cout << "Значение функции пригодности " << fitness[i] << endl;
         }
     }
 
