@@ -12,7 +12,8 @@ double mean = 0, stddev = 1;
 static random_device rd;
 static mt19937 gen(rd());
 normal_distribution<double> dist(mean, stddev);
-int unar_oper = 6, bin_oper = 6, trin_oper = 1, num_var = 1, counter = -1;
+uniform_real_distribution<double> dis(1.0, 100.0);
+int unar_oper = 6, bin_oper = 6, trin_oper = 1, num_var = 3, counter = -1, max_nodes = 100;
 // 1000sin, 1001cos, 1002exp, 1003ln, 1004 1/x, 1005-выраж, 2000log, 2001+, 2002-, 2003*, 2004/, 2005a^x, 3000if..then..else
 // 0x,
 char type[3]{ 'o', 'v', 'c' };
@@ -75,6 +76,14 @@ public:
 
     void ClearTree(Node* node);
 
+    int CountVar();
+
+    void UpNumNodes();
+
+    void UpNumNodes(Node* cur_el);
+
+    int CountDepth(Node* cur_el);
+
     int AddNode(int type, int number, double value, int depth, int* flag, int d);
 
     void AddNode(int type, int number, double value, int depth, int* flag, int d, Node*& cur_el);
@@ -102,10 +111,6 @@ public:
     void PointMut(Node* cur_el);
 
     void PartMut(int switch_init, Node* cur_el, int depth, int* flag, bool check_root);
-
-    void UpNumNodes();
-
-    void UpNumNodes(Node* cur_el);
 
     void StandCross(Node* cur_el, int splitter, Node*& cut_tree, bool cut);
 };
@@ -147,6 +152,44 @@ void Tree::ClearTree(Node* node)
         if (node == root)//не уверена, что это правильно попробую пока так
             root = nullptr;
     }
+}
+
+int Tree::CountVar()
+{
+    int current_num_var;
+    string expression = printExpression();
+    if (expression.find("x0") != std::string::npos)
+        current_num_var++;
+    if (expression.find("x1") != std::string::npos)
+        current_num_var++;
+    if (expression.find("x2") != std::string::npos)
+        current_num_var++;
+    return current_num_var;
+}
+
+void Tree::UpNumNodes()
+{
+    num_nodes = 0;
+    UpNumNodes(root);
+}
+
+void Tree::UpNumNodes(Node* cur_el)
+{
+    if(cur_el==NULL){return;}
+    num_nodes++;
+    UpNumNodes(cur_el->left);
+    UpNumNodes(cur_el->right);
+    UpNumNodes(cur_el->mid);
+}
+
+int Tree::CountDepth(Node* cur_el)
+{
+    if (cur_el==NULL) return 0;
+    int leftDepth = CountDepth(cur_el->left);
+    int rightDepth = CountDepth(cur_el->right);
+    int middleDepth = CountDepth(cur_el->mid);
+    int maxDepth = max(leftDepth, rightDepth);
+    return max(maxDepth, middleDepth) + 1;
 }
 
 int Tree::AddNode(int type, int number, double value, int depth, int* flag, int d)
@@ -467,7 +510,9 @@ double Tree::error(int num_obs, double** x, double* y)
 
 double Tree::count_fitness(double error)
 {
-    double fitness = 1/(1+error);
+    UpNumNodes();
+    int current_num_var = CountVar();
+    double fitness = 1./(1+error)-double(num_nodes)/double(max_nodes)+0.01*double(current_num_var)/double(num_var);
     if(isinf(fitness)){fitness = MAX;}
     return fitness;
 }
@@ -516,7 +561,7 @@ void Tree::Growth(int switch_init, int depth)
             }
         }
     }
-    if(switch_init == 1)
+    else if(switch_init == 1)
     {
         success = 1;
         while (success == 1)
@@ -584,7 +629,7 @@ void Tree::Growth(int switch_init, int depth)
 
 void Tree::PointMut(Node* cur_el)
 {
-    double p = 0.01, mut, before, random_const;
+    double p = 1, mut, before, random_const;
     int random_opervar;
     if(cur_el==NULL){return;}
     mut = ((double) rand() / (double)(RAND_MAX));
@@ -643,7 +688,7 @@ void Tree::PointMut(Node* cur_el)
 
 void Tree::PartMut(int switch_init, Node* cur_el, int depth, int* flag, bool check_root = false)
 {
-    double p = 0.01, mut;
+    double p = 0.1, mut;
     if(cur_el==NULL){return;}
     mut = ((double) rand() / (double)(RAND_MAX));
     if (mut <= p)//mut <= p
@@ -688,21 +733,6 @@ void Tree::PartMut(int switch_init, Node* cur_el, int depth, int* flag, bool che
         //PrintTree();
         *flag = 0;
     }
-}
-
-void Tree::UpNumNodes()
-{
-    num_nodes = 0;
-    UpNumNodes(root);
-}
-
-void Tree::UpNumNodes(Node* cur_el)
-{
-    if(cur_el==NULL){return;}
-    num_nodes++;
-    UpNumNodes(cur_el->left);
-    UpNumNodes(cur_el->right);
-    UpNumNodes(cur_el->mid);
 }
 
 void Tree::StandCross(Node* cur_el, int splitter, Node*& cut_tree, bool cut)
@@ -828,10 +858,10 @@ void synthetic_data(double** x, double* y, int num_obs)
     int i;
     for(i = 0; i < num_obs; i++)
     {
-        //x[i][0] = 0.01*i;
-        x[i][0] = 1*i;
-        //y[i] = 10*x[i][0] + sin(x[i][0]);
-        y[i] = x[i][0]*x[i][0];
+        x[i][0] = dis(gen);
+        x[i][1] = dis(gen);
+        x[i][2] = dis(gen);
+        y[i] = x[i][0]*x[i][0]+0*x[i][1];
     }
 }
 
@@ -996,9 +1026,9 @@ void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* 
     delete[] p;
 }
 
-void mutation(string mut_switch, int switch_init, int n, Tree *children, int depth)
+void mutation(string mut_switch, int switch_init, int n, Tree *children)
 {
-    int i, flag = 0;
+    int i, flag = 0, depth;
     if(mut_switch == "point")
     {
         for (i = 0; i< n; i++)
@@ -1010,11 +1040,14 @@ void mutation(string mut_switch, int switch_init, int n, Tree *children, int dep
     {
         for (i = 0; i< n; i++)
         {
+            depth = children[i].CountDepth(children[i].root);
             children[i].PartMut(switch_init, children[i].root, depth, &flag, true);
         }
     }
 }
 
+
+// вырезается со второго дерева, вставляется в первое
 void crossover(int n, Tree *parents, Tree *children)
 {
     int i, k, splitter1, splitter2;
@@ -1026,8 +1059,12 @@ void crossover(int n, Tree *parents, Tree *children)
         //cout << "Выражение " << parents[k+1].printExpression() << endl;
         parents[k].UpNumNodes();
         parents[k+1].UpNumNodes();
-        splitter1 = rand() % (parents[k].num_nodes-1)+1;
-        splitter2 = rand() % (parents[k+1].num_nodes-1)+1;
+        if (parents[k].num_nodes == 1)
+            splitter1 = 0;//нужно проследить за памятью и корнем тут
+        else splitter1 = rand() % (parents[k].num_nodes-1)+1;
+        if(parents[k+1].num_nodes == 1)
+            splitter2 = 0;
+        else splitter2 = rand() % (parents[k+1].num_nodes-1)+1;
         parents[k+1].StandCross(parents[k+1].root, splitter2, cut_tree.root, true);
         counter = -1;
         //cout << "Вырезанная часть со второго дерева " << splitter2 << "\t" << cut_tree.printExpression() << endl;
@@ -1048,14 +1085,14 @@ int main()
 {
     srand(time(NULL));
     setlocale(0, "");
-    int i, k, in, obs, num_obs = 10, depth = 3;
+    int i, j, k, in, obs, num_obs = 10, depth = 3;
     // flag нужен для того, чтобы понимать добавился ли элемент в дерево, d контролирует глубину строящегося дерева
-    int n = 100, num_generals=50, general;
+    int n = 100, num_generals=100, general;
     //n - количество индивидов в поколении, num_generals - количество поколений
     int switch_init = 0;
     //0 - полный метод, 1 - метод выращивания
     string sel_switch = "rang";// prop, rang, tour
-    string mut_switch = "point";// point, part
+    string mut_switch = "part";// point, part
     //string cross_switch = "stand";// stand, one
 
 
@@ -1070,7 +1107,7 @@ int main()
     Tree* tree = new Tree[n];
     Tree* tree_temp = new Tree[n];
     Tree* parents = new Tree[n*2];
-    Tree* children = new Tree[n];//зачем n*2?? НЕ ЗАБУДЬ ПОМЕНЯТЬ
+    Tree* children = new Tree[n];//зачем n*2??
     int *index = new int[n*2];
 
     synthetic_data(x, y, num_obs);
@@ -1085,15 +1122,20 @@ int main()
     for(general = 0; general < num_generals; general++)
     {
         cout << "General " << general << endl;
-        for(i = 0; i < n; i++)
+
+        tree[0].UpNumNodes();
+        cout << "Лучший индивид " << tree[0].printExpression() << " " << tree[0].CountDepth(tree[0].root) << endl;
+        cout << "Значение функции пригодности " << fitness[0] << " vars " << tree[0].CountVar() << endl;
+
+        /*for(i = 0; i < n; i++)
         {
             cout << "Tree " << i <<endl;
             //tree[i].PrintTree();
             tree[i].UpNumNodes();
-            cout << "Выражение " << tree[i].printExpression() << " " << tree[i].num_nodes << endl;
+            cout << "Выражение " << tree[i].printExpression() << " " << tree[i].CountDepth(tree[i].root) << endl;
             //cout << "Значение выражения " << tree[i].evaluateExpression(x[0]) << endl;
             cout << "Значение функции пригодности " << fitness[i] << endl;
-        }
+        }*/
         selection(sel_switch, fitness, n, parents, tree);
         /*for(i = 0; i < n*2; i++)
         {
@@ -1102,21 +1144,39 @@ int main()
             cout << "Выражение " << parents[i].printExpression() << " " << parents[i].num_nodes << endl;
         }*/
         crossover(n, parents, children);
+        /*if (general == 94)
+        {
+            for(i = 0; i < n; i++)
+            {
+                cout << "Child before mutation " << i <<endl;
+                //children[i].PrintTree();
+                cout << "Выражение " << children[i].printExpression() << endl;
+            }
+        }*/
         /*for(i = 0; i < n; i++)
         {
             cout << "Child before mutation " << i <<endl;
             //children[i].PrintTree();
             cout << "Выражение " << children[i].printExpression() << endl;
         }*/
-        mutation(mut_switch, switch_init, n, children, depth);
+        /*if (general == 94)
+        {
+            mutation1(mut_switch, switch_init, n, children);
+        }
+        else*/
+        mutation(mut_switch, switch_init, n, children);
+        /*if (general == 94)
+        {
+            for(i = 0; i < n; i++)
+            {
+                cout << "Child after mutation " << i <<endl;
+                //children[i].PrintTree();
+                cout << "Выражение " << children[i].printExpression() << endl;
+            }
+        }*/
         for(i = 0; i < n; i++)
         {
-            //cout << "Child " << i <<endl;
-            //tree[i].PrintTree();
-            //cout << "Выражение " << children[i].printExpression() << endl;
-            //cout << "Значение выражения " << tree[i].evaluateExpression(x[0]) << endl;
             fitness[i+n] = children[i].count_fitness(children[i].error(num_obs, x, y));
-            //cout << "Значение функции пригодности " << fitness[i+n] << endl;
         }
         for (i = 0; i < n*2; i++)
             index[i] = i;
@@ -1157,4 +1217,7 @@ int main()
 
 // штраф = коэффициент*количество узлов в дереве, пока что вообще не надо добавлять это потом
 // что насчет минус бесконечности
-// спросить что делать со скрещиванием, если в дереве только один элемент
+// разобраться с частичной мутацией
+// нужно выбирать лучших индивидов на основе рангов, ранги рассчитываются так: по трем критериям - ошибка, количество переменных,
+// количество узлов, каждому индивиду поставить три ранга в соответствии с этими критериями, затем эти ранги сложить и определить лучшего (максимум)
+// делать ограничения на максимальное количество узлов в дереве при селекции и частичной мутации, если дерево выходит за рамки, то пробовать снова, пока не получится 100 раз
