@@ -76,6 +76,8 @@ public:
 
     void ClearTree(Node* node);
 
+    void CloneTree(Node* origin_root);
+
     int CountVar();
 
     void UpNumNodes();
@@ -152,6 +154,30 @@ void Tree::ClearTree(Node* node)
         if (node == root)//не уверена, что это правильно попробую пока так
             root = nullptr;
     }
+}
+
+//использовать только при полном копировании!!
+void Tree::CloneTree(Node* origin_root)
+{
+    if(this->root)
+    {
+        ClearTree(this->root);
+    }
+    if (origin_root->type == 'o')
+    {
+        this->root = new Node(origin_root->type, origin_root->operation);
+    }
+    else if (origin_root->type == 'v')
+    {
+        this->root = new Node(origin_root->type, origin_root->variable);
+    }
+    else if (origin_root->type == 'c')
+    {
+        this->root = new Node(origin_root->type, origin_root->constant);
+    }
+    copying(origin_root->left, this->root->left);
+    copying(origin_root->right, this->root->right);
+    copying(origin_root->mid, this->root->mid);
 }
 
 int Tree::CountVar()
@@ -912,14 +938,14 @@ void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* 
             randp = ((double) rand() / (RAND_MAX));
             if (randp >= 0&&randp < p[0])
             {
-                parents[fight] = tree[0];
+                parents[fight].CloneTree(tree[0].root);
                 continue;
             }
             for (j = 0; j < n-1; j++)
             {
                 if (randp < p[j+1]&&randp >=p[j])
                 {
-                    parents[fight] = tree[j+1];
+                    parents[fight].CloneTree(tree[j+1].root);
                     break;
                 }
             }
@@ -982,14 +1008,14 @@ void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* 
             randp = ((double) rand() / (RAND_MAX));
             if (0 <= randp && randp < p[0])
             {
-                parents[fight] = tree[0];
+                parents[fight].CloneTree(tree[0].root);
                 continue;
             }
             for (j = 0; j < n-1; j++)
             {
                 if (p[j] <= randp && randp < p[j+1])
                 {
-                    parents[fight] = tree[j+1];
+                    parents[fight].CloneTree(tree[j+1].root);
                     break;
                 }
             }
@@ -1003,19 +1029,19 @@ void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* 
             candidate2 = rand() % n;
             if (fitness[candidate1] > fitness[candidate2])
             {
-                parents[fight] = tree[candidate1];
+                parents[fight].CloneTree(tree[candidate1].root);
             }
             if (fitness[candidate1] < fitness[candidate2])
             {
-                parents[fight] = tree[candidate2];
+                parents[fight].CloneTree(tree[candidate2].root);
             }
             if (fitness[candidate1] == fitness[candidate2])
             {
                 winner = rand() % 2;
                 if (winner == 0)
-                    parents[fight] = tree[candidate1];
+                    parents[fight].CloneTree(tree[candidate1].root);
                 if (winner == 1)
-                    parents[fight] = tree[candidate2];
+                    parents[fight].CloneTree(tree[candidate2].root);
             }
         }
     }
@@ -1060,7 +1086,7 @@ void crossover(int n, Tree *parents, Tree *children)
         parents[k].UpNumNodes();
         parents[k+1].UpNumNodes();
         if (parents[k].num_nodes == 1)
-            splitter1 = 0;//нужно проследить за пам€тью и корнем тут
+            splitter1 = 0;
         else splitter1 = rand() % (parents[k].num_nodes-1)+1;
         if(parents[k+1].num_nodes == 1)
             splitter2 = 0;
@@ -1068,10 +1094,10 @@ void crossover(int n, Tree *parents, Tree *children)
         parents[k+1].StandCross(parents[k+1].root, splitter2, cut_tree.root, true);
         counter = -1;
         //cout << "¬ырезанна€ часть со второго дерева " << splitter2 << "\t" << cut_tree.printExpression() << endl;
-        copying(parents[k].root, children[i].root);
+        children[i].CloneTree(parents[k].root);
         //children[i].PrintTree();
         //cout << splitter1 << " " << splitter2 << " " << k << endl;
-        children[i].StandCross(children[i].root, splitter1, cut_tree.root, false);// HERE
+        children[i].StandCross(children[i].root, splitter1, cut_tree.root, false);
         //cout << "Ќовое дерево " << splitter1 << "\t" << children[i].printExpression() << endl;
         //children[i].PrintTree();
         counter = -1;
@@ -1135,6 +1161,7 @@ int main()
             cout << "¬ыражение " << tree[i].printExpression() << " " << tree[i].CountDepth(tree[i].root) << endl;
             //cout << "«начение выражени€ " << tree[i].evaluateExpression(x[0]) << endl;
             cout << "«начение функции пригодности " << fitness[i] << endl;
+            cout << tree[i].root << endl;
         }*/
         selection(sel_switch, fitness, n, parents, tree);
         /*for(i = 0; i < n*2; i++)
@@ -1142,6 +1169,7 @@ int main()
             cout << "Parent " << i <<endl;
             parents[i].UpNumNodes();
             cout << "¬ыражение " << parents[i].printExpression() << " " << parents[i].num_nodes << endl;
+            cout << parents[i].root << endl;
         }*/
         crossover(n, parents, children);
         /*if (general == 94)
@@ -1152,27 +1180,26 @@ int main()
                 //children[i].PrintTree();
                 cout << "¬ыражение " << children[i].printExpression() << endl;
             }
-        }*/
-        /*for(i = 0; i < n; i++)
+        }
+        for(i = 0; i < n; i++)
         {
             cout << "Child before mutation " << i <<endl;
             //children[i].PrintTree();
             cout << "¬ыражение " << children[i].printExpression() << endl;
-        }*/
-        /*if (general == 94)
+            cout << children[i].root << endl;
+        }
+        if (general == 94)
         {
             mutation1(mut_switch, switch_init, n, children);
         }
-        else*/
+        */
         mutation(mut_switch, switch_init, n, children);
-        /*if (general == 94)
+        /*for(i = 0; i < n; i++)
         {
-            for(i = 0; i < n; i++)
-            {
-                cout << "Child after mutation " << i <<endl;
-                //children[i].PrintTree();
-                cout << "¬ыражение " << children[i].printExpression() << endl;
-            }
+            cout << "Child after mutation " << i <<endl;
+            //children[i].PrintTree();
+            cout << "¬ыражение " << children[i].printExpression() << endl;
+            cout << children[i].root << endl;
         }*/
         for(i = 0; i < n; i++)
         {
@@ -1187,26 +1214,35 @@ int main()
             in = index[k];
             if (in < n)
             {
-                tree_temp[i] = tree[in];
+                tree_temp[i].CloneTree(tree[in].root);
                 fitness_temp[i] = fitness[k];
             }
             if (in >= n)
             {
-                tree_temp[i] = children[in-n];
+                tree_temp[i].CloneTree(children[in-n].root);
                 fitness_temp[i] = fitness[k];
             }
         }
         for (i = 0; i < n; i++)
         {
-            tree[i] = tree_temp[i];
+            tree[i].CloneTree(tree_temp[i].root);
             fitness[i] = fitness_temp[i];
         }
     }
+    /*cout << "children" << endl;
+    for (i = 0; i < n; i++)
+    {
+        cout << "¬ыражение " << children[i].printExpression() << endl;
+        cout << children[i].root << endl;
+    }*/
 
-    //delete[] children; //рано это еще смотреть так как пока не пон€тно где они там обновл€ютс€ и так далее
-    //delete[] parents;//разобратьс€ с пам€тью, возможно, это одни и те же деревь€, поэтому вылазит ошибка
+    delete[] children; //рано это еще смотреть так как пока не пон€тно где они там обновл€ютс€ и так далее
+    delete[] parents;//разобратьс€ с пам€тью, возможно, это одни и те же деревь€, поэтому вылазит ошибка
     delete[] fitness;
+    delete[] fitness_temp;
+    delete[] tree_temp;
     delete[] tree;
+    delete[] index;
     for(i = 0; i < num_obs; i++)
     {
         delete[] x[i];
@@ -1217,7 +1253,6 @@ int main()
 
 // штраф = коэффициент*количество узлов в дереве, пока что вообще не надо добавл€ть это потом
 // что насчет минус бесконечности
-// разобратьс€ с частичной мутацией
 // нужно выбирать лучших индивидов на основе рангов, ранги рассчитываютс€ так: по трем критери€м - ошибка, количество переменных,
 // количество узлов, каждому индивиду поставить три ранга в соответствии с этими критери€ми, затем эти ранги сложить и определить лучшего (максимум)
 // делать ограничени€ на максимальное количество узлов в дереве при селекции и частичной мутации, если дерево выходит за рамки, то пробовать снова, пока не получитс€ 100 раз
