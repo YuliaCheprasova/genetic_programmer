@@ -112,7 +112,7 @@ public:
 
     void PointMut(Node* cur_el);
 
-    void PartMut(int switch_init, Node* cur_el, int depth, int* flag, bool check_root);
+    void PartMut(int switch_init, Node* cur_el, int depth, int mut_node, int current_node, int* flag);
 
     void StandCross(Node* cur_el, int splitter, Node*& cut_tree, bool cut);
 };
@@ -655,7 +655,7 @@ void Tree::Growth(int switch_init, int depth)
 
 void Tree::PointMut(Node* cur_el)
 {
-    double p = 1, mut, before, random_const;
+    double p = 0.0001, mut, before, random_const;
     int random_opervar;
     if(cur_el==NULL){return;}
     mut = ((double) rand() / (double)(RAND_MAX));
@@ -712,17 +712,17 @@ void Tree::PointMut(Node* cur_el)
 
 }
 
-void Tree::PartMut(int switch_init, Node* cur_el, int depth, int* flag, bool check_root = false)
+void Tree::PartMut(int switch_init, Node* cur_el, int depth, int mut_node, int current_node, int* flag)
 {
-    double p = 0.1, mut;
     if(cur_el==NULL){return;}
-    mut = ((double) rand() / (double)(RAND_MAX));
-    if (mut <= p)//mut <= p
+    current_node += 1;
+    if (current_node > mut_node){return;}
+    if (current_node == mut_node)
     {
         //cout << "До мутации" << endl;
         //PrintTree();
         ClearTree(cur_el);
-        if(check_root)
+        if(current_node == 0)
         {
             Growth(switch_init, depth);
             //cout << "После мутации" << endl;
@@ -732,33 +732,36 @@ void Tree::PartMut(int switch_init, Node* cur_el, int depth, int* flag, bool che
         *flag = 1;
         return;
     }
-    PartMut(switch_init, cur_el->left, depth, flag);
+    PartMut(switch_init, cur_el->left, depth, mut_node, current_node, flag);
     if(*flag == 1)
     {
         cur_el->left = NULL;
         Growth(switch_init, depth);
         //cout << "После мутации" << endl;
         //PrintTree();
-        *flag = 0;
+        *flag = 2;
     }
-    PartMut(switch_init, cur_el->right, depth, flag);
+    if(*flag == 2){return;}
+    PartMut(switch_init, cur_el->right, depth, mut_node, current_node, flag);
     if(*flag == 1)
     {
         cur_el->right = NULL;
         Growth(switch_init, depth);
         //cout << "После мутации" << endl;
         //PrintTree();
-        *flag = 0;
+        *flag = 2;
     }
-    PartMut(switch_init, cur_el->mid, depth, flag);
+    if(*flag == 2){return;}
+    PartMut(switch_init, cur_el->mid, depth, mut_node, current_node, flag);
     if(*flag == 1)
     {
         cur_el->mid = NULL;
         Growth(switch_init, depth);
         //cout << "После мутации" << endl;
         //PrintTree();
-        *flag = 0;
+        *flag = 2;
     }
+    if(*flag == 2){return;}
 }
 
 void Tree::StandCross(Node* cur_el, int splitter, Node*& cut_tree, bool cut)
@@ -1054,7 +1057,9 @@ void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* 
 
 void mutation(string mut_switch, int switch_init, int n, Tree *children)
 {
-    int i, flag = 0, depth;
+    double mut, p = 0.5;
+    int i, flag = 0, depth, mut_node;
+    Tree temp;
     if(mut_switch == "point")
     {
         for (i = 0; i< n; i++)
@@ -1064,11 +1069,35 @@ void mutation(string mut_switch, int switch_init, int n, Tree *children)
     }
     if(mut_switch == "part")
     {
-        for (i = 0; i< n; i++)
+        for (i = 0; i < n; i++)
         {
-            depth = children[i].CountDepth(children[i].root);
-            children[i].PartMut(switch_init, children[i].root, depth, &flag, true);
+            mut = ((double) rand() / (double)(RAND_MAX));
+            if(mut < p)
+            {
+                children[i].UpNumNodes();
+                if (children[i].num_nodes == 1)
+                    mut_node = 0;
+                else mut_node = rand() % (children[i].num_nodes-1)+1;
+                depth = children[i].CountDepth(children[i].root);
+                for(j = 0; j < 100; j++)
+                {
+                    temp.CloneTree(children[i].root);
+                    temp.PartMut(switch_init, children[i].root, depth, mut_node, -1, &flag);
+                    temp.UpNumNodes();
+                    if(temp.num_nodes < max_nodes)
+                    {
+                        children[i].CloneTree(temp.root);
+                        break;
+                    }
+                    //else
+                        //cout << i << " is too big " << temp.num_nodes << endl;
+                }
+                if(temp.num_nodes >= max_nodes)
+                    children[i].CloneTree(temp.root);
+                //cout << i << " done" << endl;
+            }
         }
+        delete temp;
     }
 }
 
@@ -1077,33 +1106,44 @@ void mutation(string mut_switch, int switch_init, int n, Tree *children)
 void crossover(int n, Tree *parents, Tree *children)
 {
     int i, k, splitter1, splitter2;
-    Tree cut_tree;
-    // поменять на n*2
+    Tree cut_tree, temp;
     for (i = 0, k = 0; k < n*2; i++, k += 2)
     {
         //cout << "Выражение " << parents[k].printExpression() << endl;
         //cout << "Выражение " << parents[k+1].printExpression() << endl;
         parents[k].UpNumNodes();
         parents[k+1].UpNumNodes();
-        if (parents[k].num_nodes == 1)
-            splitter1 = 0;
-        else splitter1 = rand() % (parents[k].num_nodes-1)+1;
-        if(parents[k+1].num_nodes == 1)
-            splitter2 = 0;
-        else splitter2 = rand() % (parents[k+1].num_nodes-1)+1;
-        parents[k+1].StandCross(parents[k+1].root, splitter2, cut_tree.root, true);
-        counter = -1;
-        //cout << "Вырезанная часть со второго дерева " << splitter2 << "\t" << cut_tree.printExpression() << endl;
-        children[i].CloneTree(parents[k].root);
-        //children[i].PrintTree();
-        //cout << splitter1 << " " << splitter2 << " " << k << endl;
-        children[i].StandCross(children[i].root, splitter1, cut_tree.root, false);
-        //cout << "Новое дерево " << splitter1 << "\t" << children[i].printExpression() << endl;
-        //children[i].PrintTree();
-        counter = -1;
-        cut_tree.ClearTree(cut_tree.root);
-        cut_tree.root = NULL;
+        for (j = 0; j < 100; j++)
+        {
+            if (parents[k].num_nodes == 1)
+                splitter1 = 0;
+            else splitter1 = rand() % (parents[k].num_nodes-1)+1;
+            if(parents[k+1].num_nodes == 1)
+                splitter2 = 0;
+            else splitter2 = rand() % (parents[k+1].num_nodes-1)+1;
+            parents[k+1].StandCross(parents[k+1].root, splitter2, cut_tree.root, true);
+            counter = -1;
+            //cout << "Вырезанная часть со второго дерева " << splitter2 << "\t" << cut_tree.printExpression() << endl;
+            temp.CloneTree(parents[k].root);
+            //children[i].PrintTree();
+            //cout << splitter1 << " " << splitter2 << " " << k << endl;
+            temp.StandCross(temp.root, splitter1, cut_tree.root, false);
+            //cout << "Новое дерево " << splitter1 << "\t" << children[i].printExpression() << endl;
+            //children[i].PrintTree();
+            counter = -1;
+            cut_tree.ClearTree(cut_tree.root);
+            cut_tree.root = NULL;
+            temp.UpNumNodes();
+            if (temp.num_nodes < max_nodes)
+            {
+                children[i].CloneTree(temp.root);
+                break;
+            }
+        }
+        if (temp.num_nodes >= max_nodes)
+            children[i].CloneTree(temp.root);
     }
+    delete temp;
 }
 
 
