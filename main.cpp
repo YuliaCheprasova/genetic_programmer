@@ -109,7 +109,7 @@ public:
 
     double count_fitness(double error);
 
-    void Growth(int switch_init, int depth);
+    int Growth(int switch_init, int depth);
 
     void PointMut(Node* cur_el);
 
@@ -547,10 +547,12 @@ double Tree::count_fitness(double error)
     return fitness;
 }
 
-void Tree::Growth(int switch_init, int depth)
+int Tree::Growth(int switch_init, int depth)
 {
-    int success, random_opervar, random_type, random_oper, flag = 0;
+    int success, random_opervar, random_type, random_oper, flag = 0, curr_num_nodes = 0;
     double random_const;
+    UpNumNodes();
+    curr_num_nodes = num_nodes;
     if(switch_init == 0)
     {
         success = 1;
@@ -567,7 +569,13 @@ void Tree::Growth(int switch_init, int depth)
                 random_opervar = (rand() % bin_oper)+2000;
             }
             success = AddNode(type[0], random_opervar, 0, depth-1, &flag, 0);
+            curr_num_nodes++;
+            if (curr_num_nodes > max_nodes)
+            {
+                return 1;
+            }
         }
+        curr_num_nodes--;
         success = 1;
         while (success == 1)
         {
@@ -589,7 +597,13 @@ void Tree::Growth(int switch_init, int depth)
                 else{random_const = generate_normal();}
                 success = AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
             }
+            curr_num_nodes++;
+            if (curr_num_nodes > max_nodes + 1)
+            {
+                return 1;
+            }
         }
+        curr_num_nodes--;
     }
     else if(switch_init == 1)
     {
@@ -631,7 +645,13 @@ void Tree::Growth(int switch_init, int depth)
                     success = AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
                 }
             }
+            curr_num_nodes++;
+            if (curr_num_nodes > max_nodes)
+            {
+                return 1;
+            }
         }
+        curr_num_nodes--;
         success = 1;
         while (success == 1)
         {
@@ -653,8 +673,15 @@ void Tree::Growth(int switch_init, int depth)
                 else{random_const = generate_normal();}
                 success = AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
             }
+            curr_num_nodes++;
+            if (curr_num_nodes > max_nodes+1)
+            {
+                return 1;
+            }
         }
+        curr_num_nodes--;
     }
+    return 0;
 }
 
 void Tree::PointMut(Node* cur_el)
@@ -734,8 +761,9 @@ void Tree::PartMut(int switch_init, Node* cur_el, int depth, int mut_node, int* 
         ClearTree(cur_el);
         if(*current_node == 0)
         {
-            //cur_el = nullptr;перепутала
-            Growth(switch_init, depth);
+            if (Growth(switch_init, depth) == 1)
+                *flag = 3;
+            else *flag = 2;
             //cout << "После мутации" << endl;
             //PrintTree();
             return;
@@ -747,32 +775,35 @@ void Tree::PartMut(int switch_init, Node* cur_el, int depth, int mut_node, int* 
     if(*flag == 1)
     {
         cur_el->left = NULL;
-        Growth(switch_init, depth);
+        if (Growth(switch_init, depth) == 1)
+            *flag = 3;
         //cout << "После мутации" << endl;
         //PrintTree();
-        *flag = 2;
+        else *flag = 2;
     }
-    if(*flag == 2){return;}
+    if(*flag == 2 || *flag == 3){return;}
     PartMut(switch_init, cur_el->right, depth, mut_node, current_node, flag);
     if(*flag == 1)
     {
         cur_el->right = NULL;
-        Growth(switch_init, depth);
+        if (Growth(switch_init, depth) == 1)
+            *flag = 3;
         //cout << "После мутации" << endl;
         //PrintTree();
-        *flag = 2;
+        else *flag = 2;
     }
-    if(*flag == 2){return;}
+    if(*flag == 2 || *flag == 3){return;}
     PartMut(switch_init, cur_el->mid, depth, mut_node, current_node, flag);
     if(*flag == 1)
     {
         cur_el->mid = NULL;
-        Growth(switch_init, depth);
+        if (Growth(switch_init, depth) == 1)
+            *flag = 3;
         //cout << "После мутации" << endl;
         //PrintTree();
-        *flag = 2;
+        else *flag = 2;
     }
-    if(*flag == 2){return;}
+    if(*flag == 2 || *flag == 3){return;}
 }
 
 void Tree::StandCross(Node* cur_el, int splitter, Node*& cut_tree, bool cut)
@@ -926,16 +957,54 @@ string delete_brackets(string s)
     return s;
 }
 
-void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* tree)
+double add_lex_selection1(double* rangs, int* accept_index, int n, int* n_new)
+{
+    double min_value;
+    int i, j;
+    min_value = rangs[accept_index[0]];
+    for(i = 0; i < n; i++)
+    {
+        j = accept_index[i];
+        if(rangs[j] <= min_value)
+        {
+            min_value = rangs[j];
+        }
+    }
+    for(i = 0; i < n; i++)
+    {
+        j = accept_index[i];
+        if(rangs[j] == min_value)
+        {
+            (*n_new)++;
+        }
+    }
+    return min_value;
+}
+
+void add_lex_selection2(double* rangs, int* accept_index, int n, double min_value, int* win_index)
+{
+    int i, j, k = 0;
+    for(i = 0; i < n; i++)
+    {
+        j = accept_index[i];
+        if(rangs[j] == min_value)
+        {
+            win_index[k] = j;
+            k++;
+        }
+    }
+}
+
+void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* tree, double** rangs, int nrang)
 {
     double *temp_fitness = new double[n];
     double sumfitness = 0;
     int *marks = new int[n];
     int *index = new int[n];
-    int fight, i, j, candidate1, candidate2, winner, cont = 0, k, sumrang = 0;
+    int fight, i, j, candidate1, candidate2, winner, cont = 0, k, sumrang = 0, n_new, n_cur;
     double *rang = new double[n];
     double *p = new double[n];
-    double temp = 0, randp;
+    double temp = 0, randp, min_value;
     if (sel_switch == "prop")
     {
         for (i = 0; i < n; i++)
@@ -1038,7 +1107,7 @@ void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* 
     }
     if (sel_switch == "tour")
     {
-         for (int fight = 0; fight < n*2; fight++)
+        for (fight = 0; fight < n*2; fight++)
         {
             candidate1 = rand() % n;
             candidate2 = rand() % n;
@@ -1058,6 +1127,44 @@ void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* 
                 if (winner == 1)
                     parents[fight].CloneTree(tree[candidate2].root);
             }
+        }
+    }
+    if (sel_switch == "lex")
+    {
+        int* winners;
+        int* idx;
+        int criteria[3]{0, 1, 2};
+        for (fight = 0; fight < n*2; fight++)
+        {
+            //cout << "fight " << fight << endl;
+            n_new = n;
+            idx = new int[n_new];
+            shuffle(begin(criteria), end(criteria), gen);
+            for (i = 0; i < n; i++)
+            {
+                idx[i] = i;
+            }
+            for(i = 0; i < nrang; i++)
+            {
+                //cout << "nrang " << i << endl;
+                n_cur = n_new;
+                n_new = 0;
+                min_value = add_lex_selection1(rangs[criteria[i]], idx, n_cur, &n_new);
+                winners = new int[n_new];
+                add_lex_selection2(rangs[criteria[i]],idx, n_cur, min_value, winners);
+                delete[] idx;
+                idx = new int[n_new];
+                for (j = 0; j < n_new; j++)
+                {
+                    idx[j] = winners[j];
+                }
+                delete[] winners;
+                if(n_new == 1)
+                    break;
+            }
+            j = rand() % n_new;
+            parents[fight].CloneTree(tree[idx[j]].root);
+            delete[] idx;
         }
     }
     delete[] marks;
@@ -1099,7 +1206,7 @@ void mutation(string mut_switch, int switch_init, int n, Tree *children)
                     temp.CloneTree(children[i].root);
                     temp.PartMut(switch_init, temp.root, depth, mut_node, &curr_node, &flag);// почему оно должно быть такой же глубины как изначальное дерево
                     temp.UpNumNodes();
-                    if(temp.num_nodes < max_nodes)
+                    if(flag == 2)
                     {
                         children[i].CloneTree(temp.root);
                         depth2 = children[i].CountDepth(children[i].root);
@@ -1108,15 +1215,19 @@ void mutation(string mut_switch, int switch_init, int n, Tree *children)
                     }
                     else
                     {
-                        depth2 = temp.CountDepth(temp.root);
                         //cout << i << " is too big " << temp.num_nodes << " " << depth2 << endl;
                     }
                 }
-                if(temp.num_nodes >= max_nodes)
+                if(flag == 3)
                 {
+                    flag = 0;
+                    curr_node = -1;
+                    temp.CloneTree(children[i].root);
+                    temp.PartMut(switch_init, temp.root, depth, mut_node, &curr_node, &flag);
+                    temp.UpNumNodes();
                     children[i].CloneTree(temp.root);
                     depth2 = children[i].CountDepth(children[i].root);
-                    cout << i << " has " << temp.num_nodes << " depth after " << depth2 << endl;
+                    cout << i << " has " << temp.num_nodes << endl;
                 }
                 if (depth2 > depth)
                     cout << "HERE________________________________________________________________________________________________";
@@ -1126,7 +1237,6 @@ void mutation(string mut_switch, int switch_init, int n, Tree *children)
         temp.ClearTree(temp.root);
     }
 }
-
 
 // вырезается со второго дерева, вставляется в первое
 void crossover(int n, Tree *parents, Tree *children)
@@ -1228,19 +1338,20 @@ void count_rang_fitness(double* arr, double* rang, int n, bool var = false)
 
 int main()
 {
-    //(-((x1-x1)+(((x2+(x2+(((x2+(x2+(x0-x1)))+x0)/x1)))+(x0-x1))-x1)))
+
     srand(time(NULL));
     setlocale(0, "");
-    int i, j, k, in, obs, num_obs = 100, depth = 3;
+    int i, j, k, in, obs, num_obs = 1000, depth = 3, nrang = 3;
     // flag нужен для того, чтобы понимать добавился ли элемент в дерево, d контролирует глубину строящегося дерева
-    int n = 100, num_generals=1000, general;
+    int n = 500, num_generals=1000, general;
     //n - количество индивидов в поколении, num_generals - количество поколений
     int switch_init = 1;
     //0 - полный метод, 1 - метод выращивания
-    string sel_switch = "tour";// prop, rang, tour
+    string sel_switch = "lex";// prop, rang, tour, lex
     string mut_switch = "part";// point, part
+    string fit_switch = "rang";// formula, rang
     //string cross_switch = "stand";// stand, one
-    double no = 1, v = 1, e = 10;// коэффициенты при вычислении пригодности по ранговой системе .00001
+    double no = 10, v = 1, e = 20;// коэффициенты при вычислении пригодности по ранговой системе .00001
     double MSE;
 
     double** x = new double* [num_obs];//строчки - наблюдения, столбцы - признаки для каждого наблюдения
@@ -1257,46 +1368,59 @@ int main()
     Tree* children = new Tree[n];
     int *index = new int[n*2];
     double *for_calc = new double[n*2];
-    double *rang_nodes = new double[n*2];
-    double *rang_vars = new double[n*2];
-    double *rang_errors = new double[n*2];
+    double** rangs = new double* [nrang];//nodes, vars, errors
+    for(i = 0; i < nrang; i++)
+    {
+        rangs[i] = new double[n*2];
+    }
+    double** rangs_temp = new double* [nrang];
+    for(i = 0; i < nrang; i++)
+    {
+        rangs_temp[i] = new double[n];
+    }
 
 
     synthetic_data(x, y, num_obs);
 
     init_population(switch_init, n, tree, depth);
-    // расчет пригодности с помощью рангов
-    for(i = 0; i < n; i++)
+    if (fit_switch == "formula")
     {
-        tree[i].UpNumNodes();
-        for_calc[i] = tree[i].num_nodes;
+        for(i = 0; i < n; i++)
+        {
+            fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
+        }
     }
-    count_rang_fitness(for_calc, rang_nodes, n);
-    for(i = 0; i < n; i++)
+    else if (fit_switch == "rang")
     {
-        for_calc[i] = tree[i].CountVar();
+        for(i = 0; i < n; i++)
+        {
+            tree[i].UpNumNodes();
+            for_calc[i] = tree[i].num_nodes;
+        }
+        count_rang_fitness(for_calc, rangs[0], n);
+        for(i = 0; i < n; i++)
+        {
+            for_calc[i] = tree[i].CountVar();
+        }
+        count_rang_fitness(for_calc, rangs[1], n, true);
+        for(i = 0; i < n; i++)
+        {
+            for_calc[i] = tree[i].error(num_obs, x, y);
+        }
+        count_rang_fitness(for_calc, rangs[2], n);
+        for(i = 0; i < n; i++)
+        {
+            fitness[i] = no*rangs[0][i] + v*rangs[1][i] + e*rangs[2][i];
+        }
     }
-    count_rang_fitness(for_calc, rang_vars, n);
-    for(i = 0; i < n; i++)
-    {
-        for_calc[i] = tree[i].error(num_obs, x, y);
-    }
-    count_rang_fitness(for_calc, rang_errors, n);
-    for(i = 0; i < n; i++)
-    {
-        fitness[i] = no*rang_nodes[i] + v*rang_vars[i] + e*rang_errors[i];
-    }
-    /*for(i = 0; i < n; i++)
-    {
-        fitness[i] = tree[i].count_fitness(tree[i].error(num_obs, x, y));
-    }*/
+
     //цикл поколений
     for(general = 0; general < num_generals; general++)
     {
         cout << "General " << general << endl;
 
         tree[0].UpNumNodes();
-        cout << "Лучший индивид " << tree[0].printExpression() << " " << tree[0].CountDepth(tree[0].root) << endl;
+        cout << "Лучший индивид " << tree[0].printExpression() << " " << tree[0].num_nodes << endl;
         cout << "Значение функции пригодности " << fitness[0] << " vars " << tree[0].CountVar() << endl;//помимо функции пригодности надо выводить их ранги
         MSE = tree[0].error(num_obs, x, y);
         cout << "MSE " << MSE/num_obs << endl;
@@ -1311,7 +1435,7 @@ int main()
             cout << "Значение функции пригодности " << fitness[i] << endl;
             //cout << tree[i].root << endl;
         }*/
-        selection(sel_switch, fitness, n, parents, tree);
+        selection(sel_switch, fitness, n, parents, tree, rangs, nrang);
         cout << "selection is done" << endl;
         /*for(i = 0; i < n*2; i++)
         {
@@ -1352,50 +1476,58 @@ int main()
             cout << "Выражение " << children[i].printExpression() << endl;
             //cout << children[i].root << endl;
         }*/
-        for(i = 0; i < n; i++)//НУЖНО ПЕРЕСЧИТАТЬ ПРИГОДНОСТЬ У ВСЕХ
+        if (fit_switch == "formula")
         {
-            children[i].UpNumNodes();
-            for_calc[i+n] = children[i].num_nodes;
+            for(i = 0; i < n; i++)
+            {
+                fitness[i+n] = children[i].count_fitness(children[i].error(num_obs, x, y));
+            }
         }
-        for(i = 0; i < n; i++)
+        else if (fit_switch == "rang")
         {
-            tree[i].UpNumNodes();
-            for_calc[i] = tree[i].num_nodes;
-        }
-        count_rang_fitness(for_calc, rang_nodes, n*2);
-        for(i = 0; i < n; i++)
-        {
-            for_calc[i+n] = children[i].CountVar();
-        }
-        for(i = 0; i < n; i++)
-        {
-            for_calc[i] = tree[i].CountVar();
-        }
-        count_rang_fitness(for_calc, rang_vars, n*2, true);
-        for(i = 0; i < n; i++)
-        {
-            for_calc[i+n] = children[i].error(num_obs, x, y)/num_obs;
-        }
-        for(i = 0; i < n; i++)
-        {
-            for_calc[i] = tree[i].error(num_obs, x, y)/num_obs;
-        }
-        count_rang_fitness(for_calc, rang_errors, n*2);
-        for(i = 0; i < n*2; i++)
-        {
-            fitness[i] = no*rang_nodes[i] + v*rang_vars[i] + e*rang_errors[i];
+            for(i = 0; i < n; i++)//НУЖНО ПЕРЕСЧИТАТЬ ПРИГОДНОСТЬ У ВСЕХ
+            {
+                children[i].UpNumNodes();
+                for_calc[i+n] = children[i].num_nodes;
+            }
+            for(i = 0; i < n; i++)
+            {
+                tree[i].UpNumNodes();
+                for_calc[i] = tree[i].num_nodes;
+            }
+            count_rang_fitness(for_calc, rangs[0], n*2);
+            for(i = 0; i < n; i++)
+            {
+                for_calc[i+n] = children[i].CountVar();
+            }
+            for(i = 0; i < n; i++)
+            {
+                for_calc[i] = tree[i].CountVar();
+            }
+            count_rang_fitness(for_calc, rangs[1], n*2, true);
+            for(i = 0; i < n; i++)
+            {
+                for_calc[i+n] = children[i].error(num_obs, x, y)/num_obs;
+            }
+            for(i = 0; i < n; i++)
+            {
+                for_calc[i] = tree[i].error(num_obs, x, y)/num_obs;
+            }
+            count_rang_fitness(for_calc, rangs[2], n*2);
+            for(i = 0; i < n*2; i++)
+            {
+                fitness[i] = no*rangs[0][i] + v*rangs[1][i] + e*rangs[2][i];
+            }
         }
         cout << "fitness is calculated" << endl;
-        /*for(i = 0; i < n; i++)
-        {
-            //fitness[i+n] = children[i].count_fitness(children[i].error(num_obs, x, y));
-        }*/
         for (i = 0; i < n*2; i++)
             index[i] = i;
         quicksort(fitness, index, 0, n*2 - 1);
-        //УБРАТЬ ЕСЛИ ПРИГОДНОСТЬ СЧИТАЕТСЯ НЕ С ПОМОЩЬЮ РАНГОВ
-        reverse(fitness, fitness+n*2);
-        reverse(index, index+n*2);
+        if(fit_switch == "rang")
+        {
+            reverse(fitness, fitness+n*2);
+            reverse(index, index+n*2);
+        }
         //отбор индивидов: чем больше пригодность, тем лучше
         for (i = 0, k = n*2-1; i < n; i++,k--)
         {
@@ -1404,17 +1536,29 @@ int main()
             {
                 tree_temp[i].CloneTree(tree[in].root);
                 fitness_temp[i] = fitness[k];
+                for(j = 0; j < nrang; j++)
+                {
+                    rangs_temp[j][i] = rangs[j][in];
+                }
             }
             if (in >= n)
             {
                 tree_temp[i].CloneTree(children[in-n].root);
                 fitness_temp[i] = fitness[k];
+                for(j = 0; j < nrang; j++)
+                {
+                    rangs_temp[j][i] = rangs[j][in];
+                }
             }
         }
         for (i = 0; i < n; i++)
         {
             tree[i].CloneTree(tree_temp[i].root);
             fitness[i] = fitness_temp[i];
+            for(j = 0; j < nrang; j++)
+            {
+                rangs[j][i] = rangs_temp[j][i];
+            }
         }
         cout << "the best are found" << endl;
     }
@@ -1425,9 +1569,17 @@ int main()
         cout << children[i].root << endl;
     }*/
 
-    delete[] rang_nodes;
-    delete[] rang_vars;
-    delete[] rang_errors;
+
+    for(i = 0; i < nrang; i++)
+    {
+        delete[] rangs[i];
+    }
+    delete[] rangs;
+    for(i = 0; i < nrang; i++)
+    {
+        delete[] rangs_temp[i];
+    }
+    delete[] rangs_temp;
     delete[] for_calc;
     delete[] children;
     delete[] parents;
@@ -1446,3 +1598,4 @@ int main()
 
 // штраф = коэффициент*количество узлов в дереве, пока что вообще не надо добавлять это потом
 // какой должно быть глубины дерево после частичной мутации, сейчас я оставляю его таким же каким оно было до мутации
+// в частичной мутации надо, чтобы узлы считались по ходу заполнения, чтобы сразу break, если их 100+
