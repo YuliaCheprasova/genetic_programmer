@@ -89,6 +89,8 @@ public:
 
     int AddNode(char type, int number, double value, int depth, int* flag, int d);
 
+    int Add_Node_mut(char type, int number, double value, int depth, int* flag, int d, Node*& cur_el);
+
     void AddNode(char type, int number, double value, int depth, int* flag, int d, Node*& cur_el);
 
     // читается дерево в глубину по правилу левый-корень-правый
@@ -109,11 +111,11 @@ public:
 
     double count_fitness(double error);
 
-    int Growth(int switch_init, int depth);
+    void Growth(int switch_init, int depth, Node*& cur_el, int target_nodes, int d, bool notmut);
 
-    void PointMut(Node* cur_el);
+    void PointMut(Node* cur_el, int mut_node, int* current_node);
 
-    void PartMut(int switch_init, Node* cur_el, int depth, int mut_node, int* current_node, int* flag);
+    void PartMut(int switch_init, Node*& cur_el, int depth, int mut_node, int* current_node, int* d, int* flag);
 
     void StandCross(Node* cur_el, int splitter, Node*& cut_tree, bool cut);
 };
@@ -183,7 +185,7 @@ void Tree::CloneTree(Node* origin_root)
 
 int Tree::CountVar()
 {
-    int current_num_var;
+    int current_num_var = 0;
     string expression = printExpression();
     if (expression.find("x0") != std::string::npos)
         current_num_var++;
@@ -230,8 +232,20 @@ int Tree::AddNode(char type, int number, double value, int depth, int* flag, int
     }
 }
 
+int Tree::Add_Node_mut(char type, int number, double value, int depth, int* flag, int d, Node*& cur_el)
+{
+    AddNode(type, number, value, depth, flag, d, cur_el);
+    if (*flag == 0)
+        return 0;
+    if (*flag == 1)
+    {
+        return 1;
+    }
+}
+
 void Tree::AddNode(char type, int number, double value, int depth, int* flag, int d, Node*& cur_el)
 {
+    int randcase;
     // условия вставки в дерево, чтобы в листьях оказались только переменные или константы
     if(cur_el == NULL)
     {
@@ -278,10 +292,21 @@ void Tree::AddNode(char type, int number, double value, int depth, int* flag, in
         }
         else if(cur_el->operation >= 2000 && cur_el->operation < 3000)
         {
-            AddNode(type, number, value, depth, flag, d+1, cur_el->left);
-            if(*flag==1){return;}
-            AddNode(type, number, value, depth, flag, d+1, cur_el->right);
-            if(*flag==1){return;}
+            randcase = rand() % 2;
+            if (randcase == 0)
+            {
+                AddNode(type, number, value, depth, flag, d+1, cur_el->left);
+                if(*flag==1){return;}
+                AddNode(type, number, value, depth, flag, d+1, cur_el->right);
+                if(*flag==1){return;}
+            }
+            else
+            {
+                AddNode(type, number, value, depth, flag, d+1, cur_el->right);
+                if(*flag==1){return;}
+                AddNode(type, number, value, depth, flag, d+1, cur_el->left);
+                if(*flag==1){return;}
+            }
         }
         else if(cur_el->operation >= 3000)
         {
@@ -433,9 +458,13 @@ string Tree::printExpression(Node* cur_el)
     {
         if(cur_el->constant<0)
         {
-            return "(" + to_string(cur_el->constant) + ")";
+            check =  "(" + to_string(cur_el->constant) + ")";
         }
-        else{return to_string(cur_el->constant);}
+        else{check = to_string(cur_el->constant);}
+        size_t comma {check.find(",")};
+        if (comma != string::npos)
+            check.replace(comma, 1, ".");
+        return check;
     }
     else if (cur_el->type == 'v')
     {
@@ -496,7 +525,7 @@ string Tree::printExpression(Node* cur_el)
         switch (cur_el->operation)
         {
             case 2000:
-                return "log(" + left_value + ", " + right_value + ")";
+                return "log(" + right_value + ", " + left_value + ")";
             case 2001:
                 return "(" + left_value + "+" + right_value + ")";
             case 2002:
@@ -506,7 +535,7 @@ string Tree::printExpression(Node* cur_el)
             case 2004:
                 return "(" + left_value + "/" + right_value + ")";
             case 2005:
-                return "(" + left_value + ")^" + "(" + right_value + ")";
+                return "(" + left_value + ")**" + "(" + right_value + ")";
         }
     }
     else if (cur_el->operation >= 3000)
@@ -531,9 +560,9 @@ double Tree::error(int num_obs, double** x, double* y)
     for(obs = 0; obs < num_obs; obs++)
     {
         check = evaluateExpression(x[obs]);
-        //if (isnan(check)||check == inf)
-            //check = 0;
         res+=(y[obs]-check)*(y[obs]-check);
+        if (isinf(res))
+            res = MAX;
     }
     return res;
 }
@@ -547,35 +576,36 @@ double Tree::count_fitness(double error)
     return fitness;
 }
 
-int Tree::Growth(int switch_init, int depth)
+void Tree::Growth(int switch_init, int depth, Node*& cur_el, int target_nodes = 0, int d = 0, bool notmut = true)
 {
-    int success, random_opervar, random_type, random_oper, flag = 0, curr_num_nodes = 0;
+    int success, random_opervar, random_type, random_oper, flag = 0, added_nodes = 1;
     double random_const;
-    UpNumNodes();
-    curr_num_nodes = num_nodes;
     if(switch_init == 0)
     {
         success = 1;
         while (success == 1)
         {
             flag = 0;
-            random_oper = rand() % 2;//if..then..else пока не использую;
+            random_oper = rand() % 2;
             if(random_oper == 0)
             {
                 random_opervar = (rand() % unar_oper)+1000;
+                added_nodes+=1;
             }
             else if(random_oper == 1)
             {
                 random_opervar = (rand() % bin_oper)+2000;
+                added_nodes+=2;
             }
-            success = AddNode(type[0], random_opervar, 0, depth-1, &flag, 0);
-            curr_num_nodes++;
-            if (curr_num_nodes > max_nodes)
+            if (notmut)
+                success = AddNode(type[0], random_opervar, 0, depth-1, &flag, d);
+            else
+                success = Add_Node_mut(type[0], random_opervar, 0, depth-1, &flag, d, cur_el);
+            if (added_nodes >= target_nodes && notmut == false)
             {
-                return 1;
+                success = 0;
             }
         }
-        curr_num_nodes--;
         success = 1;
         while (success == 1)
         {
@@ -584,7 +614,10 @@ int Tree::Growth(int switch_init, int depth)
             if(random_type == 1)
             {
                 random_opervar = rand() % num_var;
-                success = AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
+                if (notmut)
+                    success = AddNode(type[random_type], random_opervar, 0, depth-1, &flag, d);
+                else
+                    success = Add_Node_mut(type[random_type], random_opervar, 0, depth-1, &flag, d, cur_el);
             }
             else if(random_type == 2)
             {
@@ -595,15 +628,12 @@ int Tree::Growth(int switch_init, int depth)
                     else {random_const = M_E;}
                 }
                 else{random_const = generate_normal();}
-                success = AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
-            }
-            curr_num_nodes++;
-            if (curr_num_nodes > max_nodes + 1)
-            {
-                return 1;
+                if (notmut)
+                    success = AddNode(type[random_type], 0, random_const, depth-1, &flag, d);
+                else
+                    success = Add_Node_mut(type[random_type], 0, random_const, depth-1, &flag, d, cur_el);
             }
         }
-        curr_num_nodes--;
     }
     else if(switch_init == 1)
     {
@@ -614,16 +644,21 @@ int Tree::Growth(int switch_init, int depth)
             random_const = (double) rand() / (double)(RAND_MAX);
             if(random_const > 0.1)
             {
-                random_oper = rand() % 2;//if..then..else пока не использую;
+                random_oper = rand() % 2;
                 if(random_oper == 0)
                 {
                     random_opervar = (rand() % unar_oper)+1000;
+                    added_nodes+=1;
                 }
                 else if(random_oper == 1)
                 {
                     random_opervar = (rand() % bin_oper)+2000;
+                    added_nodes+=2;
                 }
-                success = AddNode(type[0], random_opervar, 0, depth-1, &flag, 0);
+                if (notmut)
+                    success = AddNode(type[0], random_opervar, 0, depth-1, &flag, d);
+                else
+                    success = Add_Node_mut(type[0], random_opervar, 0, depth-1, &flag, d, cur_el);
             }
             else
             {
@@ -631,7 +666,10 @@ int Tree::Growth(int switch_init, int depth)
                 if(random_type == 1)
                 {
                     random_opervar = rand() % num_var;
-                    success = AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
+                    if (notmut)
+                        success = AddNode(type[random_type], random_opervar, 0, depth-1, &flag, d);
+                    else
+                        success = Add_Node_mut(type[random_type], random_opervar, 0, depth-1, &flag, d, cur_el);
                 }
                 else if(random_type == 2)
                 {
@@ -642,16 +680,17 @@ int Tree::Growth(int switch_init, int depth)
                         else {random_const = M_E;}
                     }
                     else{random_const = generate_normal();}
-                    success = AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
+                    if (notmut)
+                        success = AddNode(type[random_type], 0, random_const, depth-1, &flag, d);
+                    else
+                        success = Add_Node_mut(type[random_type], 0, random_const, depth-1, &flag, d, cur_el);
                 }
             }
-            curr_num_nodes++;
-            if (curr_num_nodes > max_nodes)
+            if(added_nodes >= target_nodes && notmut == false)
             {
-                return 1;
+                success = 0;
             }
         }
-        curr_num_nodes--;
         success = 1;
         while (success == 1)
         {
@@ -660,7 +699,10 @@ int Tree::Growth(int switch_init, int depth)
             if(random_type == 1)
             {
                 random_opervar = rand() % num_var;
-                success = AddNode(type[random_type], random_opervar, 0, depth-1, &flag, 0);
+                if (notmut)
+                    success = AddNode(type[random_type], random_opervar, 0, depth-1, &flag, d);
+                else
+                    success = Add_Node_mut(type[random_type], random_opervar, 0, depth-1, &flag, d, cur_el);
             }
             else if(random_type == 2)
             {
@@ -671,26 +713,23 @@ int Tree::Growth(int switch_init, int depth)
                     else {random_const = M_E;}
                 }
                 else{random_const = generate_normal();}
-                success = AddNode(type[random_type], 0, random_const, depth-1, &flag, 0);
-            }
-            curr_num_nodes++;
-            if (curr_num_nodes > max_nodes+1)
-            {
-                return 1;
+                if (notmut)
+                    success = AddNode(type[random_type], 0, random_const, depth-1, &flag, d);
+                else
+                    success = Add_Node_mut(type[random_type], 0, random_const, depth-1, &flag, d, cur_el);
             }
         }
-        curr_num_nodes--;
     }
-    return 0;
 }
 
-void Tree::PointMut(Node* cur_el)
+void Tree::PointMut(Node* cur_el, int mut_node, int* current_node)
 {
-    double p = 0.0001, mut, before, random_const;
+    double before, random_const;
     int random_opervar;
     if(cur_el==NULL){return;}
-    mut = ((double) rand() / (double)(RAND_MAX));
-    if (mut <= p)
+    *current_node += 1;
+    if (*current_node > mut_node){return;}
+    if (*current_node == mut_node)
     {
         if(cur_el->type=='o')
         {
@@ -743,14 +782,14 @@ void Tree::PointMut(Node* cur_el)
         //cout << "Mutation "<< before << endl;
         //cout << endl;
     }
-    PointMut(cur_el->left);
-    PointMut(cur_el->mid);
-    PointMut(cur_el->right);
-
+    PointMut(cur_el->left, mut_node, current_node);
+    PointMut(cur_el->mid, mut_node, current_node);
+    PointMut(cur_el->right, mut_node, current_node);
 }
 
-void Tree::PartMut(int switch_init, Node* cur_el, int depth, int mut_node, int* current_node, int* flag)
+void Tree::PartMut(int switch_init, Node*& cur_el, int depth, int mut_node, int* current_node, int* d, int* flag)
 {
+    int before, after, target, cur_d;
     if(cur_el==NULL){return;}
     *current_node += 1;
     if (*current_node > mut_node){return;}
@@ -758,12 +797,11 @@ void Tree::PartMut(int switch_init, Node* cur_el, int depth, int mut_node, int* 
     {
         //cout << "До мутации" << endl;
         //PrintTree();
+        *d = CountDepth(cur_el);
         ClearTree(cur_el);
         if(*current_node == 0)
         {
-            if (Growth(switch_init, depth) == 1)
-                *flag = 3;
-            else *flag = 2;
+            Growth(switch_init, depth, root, num_nodes, 0, false);
             //cout << "После мутации" << endl;
             //PrintTree();
             return;
@@ -771,39 +809,47 @@ void Tree::PartMut(int switch_init, Node* cur_el, int depth, int mut_node, int* 
         *flag = 1;
         return;
     }
-    PartMut(switch_init, cur_el->left, depth, mut_node, current_node, flag);
+    PartMut(switch_init, cur_el->left, depth, mut_node, current_node, d, flag);
     if(*flag == 1)
     {
         cur_el->left = NULL;
-        if (Growth(switch_init, depth) == 1)
-            *flag = 3;
+        cur_d = depth-*d;
+        before = num_nodes;
+        UpNumNodes();
+        after = num_nodes;
+        target = before-after;
+        Growth(switch_init, depth, cur_el->left, target, cur_d, false);
+        *flag = 2;
         //cout << "После мутации" << endl;
         //PrintTree();
-        else *flag = 2;
     }
-    if(*flag == 2 || *flag == 3){return;}
-    PartMut(switch_init, cur_el->right, depth, mut_node, current_node, flag);
+    if(*flag == 2){return;}
+    PartMut(switch_init, cur_el->right, depth, mut_node, current_node, d, flag);
     if(*flag == 1)
     {
         cur_el->right = NULL;
-        if (Growth(switch_init, depth) == 1)
-            *flag = 3;
-        //cout << "После мутации" << endl;
-        //PrintTree();
-        else *flag = 2;
+        cur_d = depth-*d;
+        before = num_nodes;
+        UpNumNodes();
+        after = num_nodes;
+        target = before-after;
+        Growth(switch_init, depth, cur_el->right, target, cur_d, false);
+        *flag = 2;
     }
-    if(*flag == 2 || *flag == 3){return;}
-    PartMut(switch_init, cur_el->mid, depth, mut_node, current_node, flag);
+    if(*flag == 2){return;}
+    PartMut(switch_init, cur_el->mid, depth, mut_node, current_node, d, flag);
     if(*flag == 1)
     {
         cur_el->mid = NULL;
-        if (Growth(switch_init, depth) == 1)
-            *flag = 3;
-        //cout << "После мутации" << endl;
-        //PrintTree();
-        else *flag = 2;
+        cur_d = depth-*d;
+        before = num_nodes;
+        UpNumNodes();
+        after = num_nodes;
+        target = before-after;
+        Growth(switch_init, depth, cur_el->mid, target, cur_d, false);
+        *flag = 2;
     }
-    if(*flag == 2 || *flag == 3){return;}
+    if(*flag == 2){return;}
 }
 
 void Tree::StandCross(Node* cur_el, int splitter, Node*& cut_tree, bool cut)
@@ -943,7 +989,7 @@ void init_population(int switch_init, int n, Tree* tree, int depth)
     int i;
     for(i = 0; i < n; i++)
     {
-         tree[i].Growth(switch_init, depth);
+         tree[i].Growth(switch_init, depth, tree[i].root);
     }
 }
 
@@ -1176,63 +1222,44 @@ void selection (string sel_switch, double *fitness, int n, Tree* parents, Tree* 
 
 void mutation(string mut_switch, int switch_init, int n, Tree *children)
 {
-    double mut, p = 0.5;
-    int i, flag = 0, depth, mut_node, j, curr_node, depth2;
+    int i, flag = 0, depth, mut_node, j, curr_node, depth2, d;
     Tree temp;
     if(mut_switch == "point")
     {
         for (i = 0; i< n; i++)
         {
-            children[i].PointMut(children[i].root);
+            children[i].UpNumNodes();
+            if (children[i].num_nodes == 1)
+                mut_node = 0;
+            else mut_node = rand() % (children[i].num_nodes-1)+1;
+            curr_node = -1;
+            children[i].PointMut(children[i].root, mut_node, &curr_node);
         }
     }
     if(mut_switch == "part")
     {
         for (i = 0; i < n; i++)
         {
-            mut = ((double) rand() / (double)(RAND_MAX));
-            if(mut < p)
+            children[i].UpNumNodes();
+            if (children[i].num_nodes == 1)
+                mut_node = 0;
+            else mut_node = rand() % (children[i].num_nodes-1)+1;
+            depth = children[i].CountDepth(children[i].root);
+            //cout << i << " depth before " << depth << endl;
+            flag = 0;
+            curr_node = -1;
+            temp.CloneTree(children[i].root);
+            temp.PartMut(switch_init, temp.root, depth, mut_node, &curr_node, &d, &flag);
+            temp.UpNumNodes();
+            if(temp.num_nodes >= 200)
             {
-                children[i].UpNumNodes();
-                if (children[i].num_nodes == 1)
-                    mut_node = 0;
-                else mut_node = rand() % (children[i].num_nodes-1)+1;
-                depth = children[i].CountDepth(children[i].root);
-                //cout << i << " depth before " << depth << endl;
-                for(j = 0; j < 100; j++)
-                {
-                    flag = 0;
-                    curr_node = -1;
-                    temp.CloneTree(children[i].root);
-                    temp.PartMut(switch_init, temp.root, depth, mut_node, &curr_node, &flag);// почему оно должно быть такой же глубины как изначальное дерево
-                    temp.UpNumNodes();
-                    if(flag == 2)
-                    {
-                        children[i].CloneTree(temp.root);
-                        depth2 = children[i].CountDepth(children[i].root);
-                        //cout << i << " depth after " << depth2 << endl;
-                        break;
-                    }
-                    else
-                    {
-                        //cout << i << " is too big " << temp.num_nodes << " " << depth2 << endl;
-                    }
-                }
-                if(flag == 3)
-                {
-                    flag = 0;
-                    curr_node = -1;
-                    temp.CloneTree(children[i].root);
-                    temp.PartMut(switch_init, temp.root, depth, mut_node, &curr_node, &flag);
-                    temp.UpNumNodes();
-                    children[i].CloneTree(temp.root);
-                    depth2 = children[i].CountDepth(children[i].root);
-                    cout << i << " has " << temp.num_nodes << endl;
-                }
-                if (depth2 > depth)
-                    cout << "HERE________________________________________________________________________________________________";
-                //if(i == 70){cout << i << " done" << endl;}
+                cout << i << " got " << temp.num_nodes << endl;
             }
+            children[i].CloneTree(temp.root);
+            depth2 = children[i].CountDepth(children[i].root);
+            if (depth2 > depth)
+                cout << "HERE________________________________________________________________________________________________";
+            //if(i == 70){cout << i << " done" << endl;}
         }
         temp.ClearTree(temp.root);
     }
@@ -1348,7 +1375,7 @@ int main()
     int switch_init = 1;
     //0 - полный метод, 1 - метод выращивания
     string sel_switch = "lex";// prop, rang, tour, lex
-    string mut_switch = "part";// point, part
+    string mut_switch = "point";// point, part
     string fit_switch = "rang";// formula, rang
     //string cross_switch = "stand";// stand, one
     double no = 10, v = 1, e = 20;// коэффициенты при вычислении пригодности по ранговой системе .00001
